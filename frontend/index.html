@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Evaluation Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      min-height: 100vh;
+    }
+    header {
+      background: #2d3748;
+      color: #fff;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    header h1 { font-size: 1.4rem; }
+    header span { font-size: 0.85rem; background: #4a5568; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    main { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      background: #fff;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    }
+    .card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: #2d3748; }
+    label { display: block; margin-bottom: 0.25rem; font-size: 0.875rem; font-weight: 600; }
+    textarea, input[type="text"] {
+      width: 100%; border: 1px solid #cbd5e0; border-radius: 0.5rem;
+      padding: 0.6rem 0.75rem; font-size: 0.9rem; resize: vertical;
+      margin-bottom: 0.75rem;
+    }
+    textarea:focus, input[type="text"]:focus { outline: 2px solid #667eea; border-color: transparent; }
+    button {
+      background: #667eea; color: #fff; border: none; border-radius: 0.5rem;
+      padding: 0.65rem 1.5rem; font-size: 0.95rem; cursor: pointer; transition: background .2s;
+    }
+    button:hover { background: #5a67d8; }
+    button:disabled { background: #a0aec0; cursor: not-allowed; }
+    #error-msg { color: #e53e3e; font-size: 0.875rem; margin-top: 0.5rem; display: none; }
+    .results-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;
+      margin-top: 1rem;
+    }
+    .metric-card {
+      border: 1px solid #e2e8f0; border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+    }
+    .metric-card .metric-name { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #718096; }
+    .metric-card .metric-score { font-size: 1.6rem; font-weight: 700; }
+    .metric-card .metric-level { font-size: 0.8rem; margin-top: 0.15rem; }
+    .metric-card .metric-reason { font-size: 0.78rem; color: #4a5568; margin-top: 0.4rem; }
+    .score-high { color: #38a169; }
+    .score-medium { color: #d69e2e; }
+    .score-low { color: #e53e3e; }
+    .overall-badge {
+      display: inline-block; margin-top: 0.75rem;
+      padding: 0.4rem 1rem; border-radius: 9999px;
+      font-weight: 700; font-size: 1rem; background: #ebf4ff; color: #2b6cb0;
+    }
+    .history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .history-table th { background: #f7fafc; text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid #e2e8f0; }
+    .history-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #e2e8f0; }
+    .history-table tr:hover td { background: #f7fafc; }
+    .empty-state { text-align: center; color: #a0aec0; padding: 2rem; }
+    canvas { max-height: 280px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🤖 AI Evaluation Dashboard</h1>
+    <span>Phase 1 — Placeholder Scoring</span>
+  </header>
+
+  <main>
+    <!-- Evaluation form + results -->
+    <div class="grid-2" style="margin-bottom:1.5rem;">
+      <div class="card">
+        <h2>Evaluate a Response</h2>
+        <label for="question">Question / Prompt</label>
+        <textarea id="question" rows="3" placeholder="Enter the user's question…"></textarea>
+
+        <label for="ai-response">AI Agent Response</label>
+        <textarea id="ai-response" rows="5" placeholder="Paste the AI response to evaluate…"></textarea>
+
+        <label for="context">Reference Context (optional)</label>
+        <textarea id="context" rows="3" placeholder="Paste supporting context for groundedness…"></textarea>
+
+        <button id="evaluate-btn" onclick="runEvaluation()">Evaluate</button>
+        <p id="error-msg"></p>
+      </div>
+
+      <div class="card" id="results-card">
+        <h2>Results</h2>
+        <div id="results-placeholder" class="empty-state">Run an evaluation to see scores here.</div>
+        <div id="results-content" style="display:none;">
+          <div class="results-grid" id="metric-cards"></div>
+          <div>
+            <span class="overall-badge" id="overall-badge"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts + history -->
+    <div class="grid-2" style="margin-bottom:1.5rem;">
+      <div class="card">
+        <h2>Average Metric Scores</h2>
+        <canvas id="averages-chart"></canvas>
+      </div>
+      <div class="card">
+        <h2>Last 10 Overall Scores</h2>
+        <canvas id="history-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Evaluation History</h2>
+      <div id="history-container"><p class="empty-state">Loading history…</p></div>
+    </div>
+  </main>
+
+  <script src="dashboard_charts.js"></script>
+</body>
+</html>
