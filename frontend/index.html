@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Evaluation Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #080c10;
+    --surface: #0d1219;
+    --border: #1a2332;
+    --text: #e2e8f0;
+    --muted: #4a5568;
+    --blue: #38bdf8;
+    --green: #34d399;
+    --purple: #a78bfa;
+    --orange: #fb923c;
+    --red: #f87171;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .nav-logo {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--blue);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: -0.5px;
+  }
+
+  .nav-links { display: flex; gap: 8px; }
+
+  .nav-btn {
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .nav-btn.active, .nav-btn:hover {
+    background: var(--blue);
+    color: var(--bg);
+    border-color: var(--blue);
+  }
+
+  /* PAGES */
+  .page { display: none; padding: 40px; max-width: 1000px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* PAGE HEADER */
+  .page-header { margin-bottom: 36px; }
+  .page-header h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+  .page-header p { color: var(--muted); font-size: 0.95rem; }
+
+  /* FORM */
+  .eval-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 36px;
+  }
+
+  .form-group { margin-bottom: 20px; }
+
+  label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--blue);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    resize: vertical;
+    transition: border-color 0.2s;
+    line-height: 1.6;
+  }
+
+  textarea:focus {
+    outline: none;
+    border-color: var(--blue);
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 16px;
+    background: var(--blue);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    letter-spacing: 0.5px;
+  }
+
+  .submit-btn:hover { opacity: 0.9; }
+  .submit-btn:active { transform: scale(0.99); }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* LOADING */
+  .loading {
+    display: none;
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+  }
+
+  .loading.visible { display: block; }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* RESULTS */
+  .results { display: none; }
+  .results.visible { display: block; }
+
+  .overall-score {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .overall-label {
+    font-size: 0.8rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  .overall-number {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .overall-number.high { color: var(--green); }
+  .overall-number.mid { color: var(--orange); }
+  .overall-number.low { color: var(--red); }
+
+  /* SCORE CARDS */
+  .score-cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    border-top: 3px solid;
+    transition: transform 0.2s;
+  }
+
+  .score-card:hover { transform: translateY(-2px); }
+  .score-card.groundedness { border-top-color: var(--blue); }
+  .score-card.relevance { border-top-color: var(--green); }
+  .score-card.safety { border-top-color: var(--purple); }
+  .score-card.completeness { border-top-color: var(--orange); }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .card-metric {
+    font-size: 0.78rem;
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  .card-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .badge-pass { background: #1a4731; color: var(--green); }
+  .badge-fail { background: #3d1a1a; color: var(--red); }
+
+  .card-score {
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .score-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease;
+  }
+
+  .groundedness .score-bar-fill { background: var(--blue); }
+  .relevance .score-bar-fill { background: var(--green); }
+  .safety .score-bar-fill { background: var(--purple); }
+  .completeness .score-bar-fill { background: var(--orange); }
+
+  .card-reasoning {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* CHART */
+  .chart-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+
+  .chart-title {
+    font-size: 0.8rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+  }
+
+  canvas { max-height: 280px; }
+
+  /* HISTORY TABLE */
+  .history-table {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  thead {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 14px 20px;
+    text-align: left;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  td {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .score-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .pill-high { background: #1a4731; color: var(--green); }
+  .pill-mid { background: #2d2214; color: var(--orange); }
+  .pill-low { background: #3d1a1a; color: var(--red); }
+
+  .question-cell {
+    max-width: 280px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+  }
+
+  .error-msg {
+    background: #3d1a1a;
+    border: 1px solid #7f1d1d;
+    color: var(--red);
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    margin-bottom: 20px;
+    display: none;
+  }
+
+  .error-msg.visible { display: block; }
+
+  .refresh-btn {
+    padding: 10px 24px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 24px;
+  }
+
+  .refresh-btn:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">AI_EVAL //</div>
+  <div class="nav-links">
+    <a class="nav-btn active" onclick="showPage('evaluate', this)">Evaluate</a>
+    <a class="nav-btn" onclick="showPage('history', this)">History</a>
+  </div>
+</nav>
+
+<!-- EVALUATE PAGE -->
+<div class="page active" id="page-evaluate">
+  <div class="page-header">
+    <h1>Run Evaluation</h1>
+    <p>Submit an AI response and get it scored across four metrics by the Groq judge.</p>
+  </div>
+
+  <div class="eval-form">
+    <div class="form-group">
+      <label>Question</label>
+      <textarea id="question" rows="2" placeholder="What was the AI asked?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Context</label>
+      <textarea id="context" rows="4" placeholder="What context did the AI have access to?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>AI Response</label>
+      <textarea id="ai_response" rows="4" placeholder="What did the AI respond with?"></textarea>
+    </div>
+    <button class="submit-btn" onclick="runEvaluation()">Run Evaluation</button>
+  </div>
+
+  <div class="error-msg" id="error-msg"></div>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    Sending to Groq judge — this takes a few seconds...
+  </div>
+
+  <div class="results" id="results">
+    <div class="overall-score">
+      <div>
+        <div class="overall-label">Overall Score</div>
+        <div class="overall-number" id="overall-number">—</div>
+      </div>
+      <div id="overall-status" style="font-size:0.85rem; color: var(--muted);"></div>
+    </div>
+
+    <div class="score-cards">
+      <div class="score-card groundedness">
+        <div class="card-header">
+          <span class="card-metric">Groundedness</span>
+          <span class="card-badge" id="badge-groundedness"></span>
+        </div>
+        <div class="card-score" id="score-groundedness" style="color: var(--blue);">—</div>
+        <div class="score-bar"><div class="score-bar-fill" id="bar-groundedness" style="width:0%"></div></div>
+        <div class="card-reasoning" id="reasoning-groundedness"></div>
+      </div>
+
+      <div class="score-card relevance">
+        <div class="card-header">
+          <span class="card-metric">Relevance</span>
+          <span class="card-badge" id="badge-relevance"></span>
+        </div>
+        <div class="card-score" id="score-relevance" style="color: var(--green);">—</div>
+        <div class="score-bar"><div class="score-bar-fill" id="bar-relevance" style="width:0%"></div></div>
+        <div class="card-reasoning" id="reasoning-relevance"></div>
+      </div>
+
+      <div class="score-card safety">
+        <div class="card-header">
+          <span class="card-metric">Safety</span>
+          <span class="card-badge" id="badge-safety"></span>
+        </div>
+        <div class="card-score" id="score-safety" style="color: var(--purple);">—</div>
+        <div class="score-bar"><div class="score-bar-fill" id="bar-safety" style="width:0%"></div></div>
+        <div class="card-reasoning" id="reasoning-safety"></div>
+      </div>
+
+      <div class="score-card completeness">
+        <div class="card-header">
+          <span class="card-metric">Completeness</span>
+          <span class="card-badge" id="badge-completeness"></span>
+        </div>
+        <div class="card-score" id="score-completeness" style="color: var(--orange);">—</div>
+        <div class="score-bar"><div class="score-bar-fill" id="bar-completeness" style="width:0%"></div></div>
+        <div class="card-reasoning" id="reasoning-completeness"></div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <div class="chart-title">Score Breakdown</div>
+      <canvas id="score-chart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY PAGE -->
+<div class="page" id="page-history">
+  <div class="page-header">
+    <h1>Evaluation History</h1>
+    <p>All past evaluations stored in the database, newest first.</p>
+  </div>
+
+  <button class="refresh-btn" onclick="loadHistory()">↻ Refresh</button>
+
+  <div class="history-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Groundedness</th>
+          <th>Relevance</th>
+          <th>Safety</th>
+          <th>Completeness</th>
+          <th>Overall</th>
+        </tr>
+      </thead>
+      <tbody id="history-body">
+        <tr><td colspan="6"><div class="empty-state">No evaluations yet — run one first.</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/static/dashboard_charts.js"></script>
+</body>
+</html>

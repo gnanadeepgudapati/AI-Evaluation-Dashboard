@@ -1,47 +1,46 @@
 # evaluation_routes.py
-# All the API endpoints live here.
+# All API endpoints live here.
 # dashboard_server.py plugs this in automatically.
 
 from fastapi import APIRouter, HTTPException
 from evaluation_pipeline.metric_definitions import EvaluationInput, EvaluationResult
 from evaluation_pipeline.score_calculator import run_full_evaluation
+from database.evaluation_store import save_evaluation, get_all_evaluations, get_evaluation_by_id
 
 router = APIRouter()
-
-# In-memory storage for Phase 1 — Phase 2 replaces this with SQLite
-evaluation_history = []
 
 
 @router.post("/evaluate", response_model=EvaluationResult)
 def evaluate_response(input: EvaluationInput):
     """
     Submit an AI response for evaluation.
-    Send a question, context, and AI response — get back scores for all four metrics.
+    Returns scores for all four metrics with reasoning.
     """
     try:
         result = run_full_evaluation(input)
-        evaluation_history.append(result.dict())
+        save_evaluation(result.dict())
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/evaluations")
-def get_all_evaluations():
+def get_all():
     """
-    Get every evaluation that's been run this session.
+    Get every evaluation stored in the database, newest first.
     """
-    if not evaluation_history:
-        return {"message": "No evaluations run yet.", "evaluations": []}
-    return {"total": len(evaluation_history), "evaluations": evaluation_history}
+    evaluations = get_all_evaluations()
+    if not evaluations:
+        return {"message": "No evaluations yet.", "evaluations": []}
+    return {"total": len(evaluations), "evaluations": evaluations}
 
 
 @router.get("/evaluations/{evaluation_id}")
-def get_single_evaluation(evaluation_id: str):
+def get_one(evaluation_id: str):
     """
     Get one specific evaluation by its ID.
     """
-    for evaluation in evaluation_history:
-        if evaluation["evaluation_id"] == evaluation_id:
-            return evaluation
-    raise HTTPException(status_code=404, detail="Evaluation not found.")
+    evaluation = get_evaluation_by_id(evaluation_id)
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found.")
+    return evaluation
