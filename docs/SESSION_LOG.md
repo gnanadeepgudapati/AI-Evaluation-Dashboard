@@ -65,3 +65,34 @@
 ### What's Next
 - Phase 2: suite JSON fixtures, judge upgrade (JSON-mode + async gather), `metrics/code_runner.py`, consistency scoring, suite-mode support in `/compare`.
 
+---
+
+## Session 003 — 2026-07-29
+
+### Attempted
+- Executed Phase 2 in full: suite fixtures, judge upgrade, code runner, consistency scoring, suite-mode `/compare`, tests, lint/type gate.
+
+### Files Changed / Created
+- `suites/coding.json`, `suites/reasoning.json`, `suites/rag_faithfulness.json`, `suites/safety.json` — created (5 items each)
+- `evaluation_pipeline/groq_judge.py` — edited: added `AsyncGroq` client, `ARENA_METRICS`, `build_json_judge_prompt`/`parse_json_judge_response` (JSON-mode, graceful fallback to score=0.5/"parse error" on malformed JSON), `judge_metric_async`, `judge_all_metrics_async` (asyncio.gather). Legacy `judge_metric`/`build_judge_prompt`/`parse_judge_response` untouched for `/evaluate` backward compat. Added `correctness` metric (checks against `ground_truth` when provided, replaces `relevance` for arena use).
+- `evaluation_pipeline/metric_definitions.py` — edited: added optional `ground_truth` field to `EvaluationInput`, `correctness` threshold (0.7)
+- `metrics/code_runner.py` — created: `run_code_test()` writes `solution.py` + `test_solution.py` to a fresh temp dir, runs `sys.executable -m pytest` as a subprocess (no `shell=True`) with a hard timeout, always cleans up. Documented as process-isolation + timeout only, NOT a full security sandbox (no seccomp/container boundary) — flagged for anyone deploying with untrusted code.
+- `api/compare_routes.py` — edited: `_run_one_model` now uses the async JSON-mode judge and supports `consistency_runs` (repeats + `1 - pstdev` of per-run average scores); new `_run_suite_for_model` executes a full suite (5 items, optionally repeated) against one model — routes to `code_runner` for the coding suite, to suite-specific judge metrics (`SUITE_JUDGE_METRICS`) for reasoning/rag_faithfulness/safety; `_load_suite_items`, `_build_item_prompt` (special-cases `rag_faithfulness`'s context+question shape), `_extract_code` (pulls a fenced code block from the model response); `/compare` now branches on `suite_id` vs `prompt` instead of returning 501 for suites; `_average_judge_score` falls back to `code_pass_rate` so the coding suite can still produce a winner.
+- `tests/test_code_runner.py` — created (passing, failing assertion, syntax error, timeout, suspicious-import-doesn't-hang)
+- `tests/test_suites.py` — created (all 4 suites load, 5 items each, required keys present, unique IDs)
+- `tests/test_groq_judge.py` — created (JSON parsing incl. malformed-JSON fallback, `judge_metric_async` uses `response_format=json_object`, `judge_all_metrics_async` runs 4 calls concurrently)
+- `tests/test_evaluation_pipeline.py` — populated (was empty): legacy `parse_judge_response`, metric thresholds, `EvaluationInput.ground_truth` default, `run_full_evaluation` aggregation with a mocked judge
+- `tests/test_compare_routes.py` — extended: reasoning-suite aggregation, coding-suite via mocked `code_runner`, suite-not-found 404, `consistency_runs=2` produces `consistency == 1.0` when scores don't vary; updated existing fixture to mock `judge_all_metrics_async` instead of the retired `judge_metric` usage in this module
+
+### Verification
+- `pytest tests/ -v` → 54 passed
+- `ruff check . --fix` → all checks passed
+- `mypy api/ providers/ metrics/ database/ evaluation_pipeline/ --ignore-missing-imports` → no issues
+
+### Deviation from PLAN.md
+- Suite-mode aggregation design wasn't fully spelled out in PLAN.md (which focused on per-item suite *content*, not exactly how a 5-item suite collapses into one `ModelResult`). Decision made and recorded in CONTEXT.md: per suite run, `latency_ms`/all raw latencies feed `p50`, `cost_usd` and token counts are summed across items, judge metric scores are averaged across items (and, for `consistency_runs>1`, across repeats too), and `response_text` becomes a truncated per-item preview list. Coding suite skips the judge entirely and reports `code_pass_rate` instead.
+- `code_runner.py` uses `sys.executable` as the interpreter (falling back to `shutil.which`) rather than only `shutil.which("python")` as literally written in PLAN.md — guarantees the subprocess uses the same environment (with pytest installed) as the running server, avoiding PATH-dependent failures.
+
+### What's Next
+- Phase 3: scaffold `frontend-src/` (Vite + React + TS + Tailwind + Recharts), build Compare/Results/History pages, SSE wiring, demo mode.
+

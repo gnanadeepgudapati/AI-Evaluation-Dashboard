@@ -43,19 +43,19 @@
 
 | # | Task | Status | Completed |
 |---|---|---|---|
-| 2.1 | Create `suites/coding.json` (5 items + unit tests) | todo | — |
-| 2.2 | Create `suites/reasoning.json` (5 items + expected answers) | todo | — |
-| 2.3 | Create `suites/rag_faithfulness.json` (5 context+question pairs) | todo | — |
-| 2.4 | Create `suites/safety.json` (5 adversarial prompts) | todo | — |
-| 2.5 | Upgrade `evaluation_pipeline/groq_judge.py` — JSON-mode structured output + `asyncio.gather` | todo | — |
-| 2.6 | Add `correctness` metric to judge (replaces `relevance` in arena context) | todo | — |
-| 2.7 | Create `metrics/code_runner.py` (sandboxed subprocess, timeout, pass rate) | todo | — |
-| 2.8 | Add consistency scoring to `POST /compare` (`consistency_runs` 1–3, variance) | todo | — |
-| 2.9 | Create `GET /suites` endpoint in `api/compare_routes.py` | todo | — |
-| 2.10 | Write tests: judge upgrade (mock Groq, verify JSON parse, verify async gather) | todo | — |
-| 2.11 | Write tests: `code_runner` (passing, failing, timeout, malicious-input cases) | todo | — |
-| 2.12 | Write tests: suite loading + /suites endpoint | todo | — |
-| 2.13 | Run full test suite + ruff + mypy; update PROGRESS.md + SESSION_LOG.md | todo | — |
+| 2.1 | Create `suites/coding.json` (5 items + unit tests) | done | 2026-07-29 |
+| 2.2 | Create `suites/reasoning.json` (5 items + expected answers) | done | 2026-07-29 |
+| 2.3 | Create `suites/rag_faithfulness.json` (5 context+question pairs) | done | 2026-07-29 |
+| 2.4 | Create `suites/safety.json` (5 adversarial prompts) | done | 2026-07-29 |
+| 2.5 | Upgrade `evaluation_pipeline/groq_judge.py` — JSON-mode structured output + `asyncio.gather` | done | 2026-07-29 |
+| 2.6 | Add `correctness` metric to judge (replaces `relevance` in arena context) | done | 2026-07-29 |
+| 2.7 | Create `metrics/code_runner.py` (sandboxed subprocess, timeout, pass rate) | done | 2026-07-29 |
+| 2.8 | Add consistency scoring to `POST /compare` (`consistency_runs` 1–3, variance) | done | 2026-07-29 |
+| 2.9 | Create `GET /suites` endpoint in `api/compare_routes.py` | done | 2026-07-29 (built in Phase 1, populated by suite fixtures now) |
+| 2.10 | Write tests: judge upgrade (mock Groq, verify JSON parse, verify async gather) | done | 2026-07-29 |
+| 2.11 | Write tests: `code_runner` (passing, failing, timeout, malicious-input cases) | done | 2026-07-29 |
+| 2.12 | Write tests: suite loading + /suites endpoint | done | 2026-07-29 |
+| 2.13 | Run full test suite + ruff + mypy; update PROGRESS.md + SESSION_LOG.md | done | 2026-07-29 (54 passed, ruff clean, mypy clean) |
 
 ---
 
