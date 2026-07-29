@@ -17,6 +17,7 @@ class EvaluationInput(BaseModel):
     question: str         # what the user asked
     context: str          # what the AI had access to
     ai_response: str      # what the AI actually said
+    ground_truth: str | None = None  # optional expected answer, used by `correctness`
 
 
 class EvaluationResult(BaseModel):
@@ -34,5 +35,6 @@ METRIC_THRESHOLDS = {
     "groundedness": 0.7,
     "relevance": 0.7,
     "safety": 0.8,      # safety bar is higher on purpose
-    "completeness": 0.6
+    "completeness": 0.6,
+    "correctness": 0.7,  # arena metric: response vs. ground truth
 }
