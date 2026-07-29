@@ -5,6 +5,7 @@
 // server publishes to a queue this stream is already subscribed to.
 
 import { useEffect, useRef, useState } from 'react'
+import { streamUrl } from '../lib/api'
 
 export type ProgressStage = 'idle' | 'started' | 'model_a_done' | 'model_b_done' | 'judge_done' | 'complete'
 
@@ -22,7 +23,7 @@ export function useEventSource(runId: string | null) {
     if (!runId) return
 
     setStage('idle')
-    const source = new EventSource(`/stream/${runId}`)
+    const source = new EventSource(streamUrl(runId))
     sourceRef.current = source
 
     const stages: ProgressStage[] = ['started', 'model_a_done', 'model_b_done', 'judge_done', 'complete']
