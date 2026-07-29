@@ -3,3 +3,13 @@ uvicorn
 pydantic
 httpx
 python-dotenv
+groq
+anthropic
+openai
+google-generativeai
+aiosqlite
+sse-starlette
+pytest
+pytest-asyncio
+mypy
+ruff

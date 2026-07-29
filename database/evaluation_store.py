@@ -2,9 +2,8 @@
 # Handles all database operations — saving and retrieving evaluations.
 # Uses SQLite because it's built into Python and needs zero setup.
 
-import sqlite3
-import json
 import os
+import sqlite3
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "evaluations.db")
 

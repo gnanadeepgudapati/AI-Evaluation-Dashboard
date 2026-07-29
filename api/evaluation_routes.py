@@ -3,9 +3,10 @@
 # dashboard_server.py plugs this in automatically.
 
 from fastapi import APIRouter, HTTPException
+
+from database.evaluation_store import get_all_evaluations, get_evaluation_by_id, save_evaluation
 from evaluation_pipeline.metric_definitions import EvaluationInput, EvaluationResult
 from evaluation_pipeline.score_calculator import run_full_evaluation
-from database.evaluation_store import save_evaluation, get_all_evaluations, get_evaluation_by_id
 
 router = APIRouter()
 
@@ -21,7 +22,7 @@ def evaluate_response(input: EvaluationInput):
         save_evaluation(result.dict())
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/evaluations")

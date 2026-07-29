@@ -2,8 +2,8 @@
 # Defines what each evaluation metric means and how to score it.
 # The rest of the pipeline reads from here — nothing gets hardcoded elsewhere.
 
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class MetricResult(BaseModel):
@@ -20,7 +20,7 @@ class EvaluationInput(BaseModel):
 
 
 class EvaluationResult(BaseModel):
-    evaluation_id: Optional[str] = None
+    evaluation_id: str | None = None
     question: str
     groundedness: MetricResult
     relevance: MetricResult

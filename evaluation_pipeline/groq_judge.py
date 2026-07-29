@@ -4,13 +4,11 @@
 # sends a structured prompt to Groq, and returns a score with reasoning.
 
 import os
-from groq import Groq
+
 from dotenv import load_dotenv
-from evaluation_pipeline.metric_definitions import (
-    EvaluationInput,
-    MetricResult,
-    METRIC_THRESHOLDS
-)
+from groq import Groq
+
+from evaluation_pipeline.metric_definitions import METRIC_THRESHOLDS, EvaluationInput, MetricResult
 
 load_dotenv()
 
@@ -110,7 +108,7 @@ def judge_metric(metric: str, input: EvaluationInput) -> MetricResult:
         temperature=0.0  # we want consistent, deterministic scoring
     )
 
-    response_text = chat_response.choices[0].message.content
+    response_text = chat_response.choices[0].message.content or ""
     score, reasoning = parse_judge_response(response_text)
     threshold = METRIC_THRESHOLDS[metric]
 

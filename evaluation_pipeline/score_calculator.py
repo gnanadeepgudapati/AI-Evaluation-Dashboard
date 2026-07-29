@@ -2,12 +2,10 @@
 # Runs all four metric scorers and aggregates the results.
 # Phase 1 had hardcoded placeholder scores — this is the real thing.
 
-from evaluation_pipeline.metric_definitions import (
-    EvaluationInput,
-    EvaluationResult
-)
-from evaluation_pipeline.groq_judge import judge_metric
 import uuid
+
+from evaluation_pipeline.groq_judge import judge_metric
+from evaluation_pipeline.metric_definitions import EvaluationInput, EvaluationResult
 
 
 def run_full_evaluation(input: EvaluationInput) -> EvaluationResult:
