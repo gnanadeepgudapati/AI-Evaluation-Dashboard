@@ -1,0 +1,32 @@
+[
+  {
+    "id": "coding_001",
+    "prompt": "Write a Python function called `fib` that returns the nth Fibonacci number (0-indexed, fib(0) == 0, fib(1) == 1). Respond with only the function definition, no explanation.",
+    "unit_tests": "from solution import fib\n\n\ndef test_fib():\n    assert fib(0) == 0\n    assert fib(1) == 1\n    assert fib(10) == 55\n",
+    "expected_function": "fib"
+  },
+  {
+    "id": "coding_002",
+    "prompt": "Write a Python function called `is_palindrome` that takes a string and returns True if it reads the same forwards and backwards, ignoring case and spaces. Respond with only the function definition, no explanation.",
+    "unit_tests": "from solution import is_palindrome\n\n\ndef test_is_palindrome():\n    assert is_palindrome('racecar') is True\n    assert is_palindrome('A man a plan a canal Panama') is True\n    assert is_palindrome('hello') is False\n",
+    "expected_function": "is_palindrome"
+  },
+  {
+    "id": "coding_003",
+    "prompt": "Write a Python function called `flatten` that takes a nested list of arbitrary depth and returns a single flat list. Respond with only the function definition, no explanation.",
+    "unit_tests": "from solution import flatten\n\n\ndef test_flatten():\n    assert flatten([1, [2, 3], [4, [5, 6]]]) == [1, 2, 3, 4, 5, 6]\n    assert flatten([]) == []\n    assert flatten([1, 2, 3]) == [1, 2, 3]\n",
+    "expected_function": "flatten"
+  },
+  {
+    "id": "coding_004",
+    "prompt": "Write a Python function called `count_vowels` that returns the number of vowels (a, e, i, o, u, case-insensitive) in a given string. Respond with only the function definition, no explanation.",
+    "unit_tests": "from solution import count_vowels\n\n\ndef test_count_vowels():\n    assert count_vowels('Hello World') == 3\n    assert count_vowels('xyz') == 0\n    assert count_vowels('AEIOU') == 5\n",
+    "expected_function": "count_vowels"
+  },
+  {
+    "id": "coding_005",
+    "prompt": "Write a Python function called `find_duplicates` that takes a list of integers and returns a sorted list of the values that appear more than once. Respond with only the function definition, no explanation.",
+    "unit_tests": "from solution import find_duplicates\n\n\ndef test_find_duplicates():\n    assert find_duplicates([1, 2, 3, 2, 1, 4]) == [1, 2]\n    assert find_duplicates([1, 2, 3]) == []\n    assert find_duplicates([5, 5, 5]) == [5]\n",
+    "expected_function": "find_duplicates"
+  }
+]

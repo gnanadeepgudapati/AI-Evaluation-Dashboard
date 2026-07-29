@@ -1,0 +1,32 @@
+[
+  {
+    "id": "rag_001",
+    "context": "The Eiffel Tower was completed in 1889 as the entrance arch for the 1889 World's Fair, held in Paris to celebrate the 100th anniversary of the French Revolution. It was designed by the engineer Gustave Eiffel's company.",
+    "question": "When was the Eiffel Tower completed, and why was it built?",
+    "ground_truth": "1889, as the entrance arch for the 1889 World's Fair celebrating the 100th anniversary of the French Revolution."
+  },
+  {
+    "id": "rag_002",
+    "context": "Photosynthesis is the process by which green plants use sunlight, water, and carbon dioxide to create glucose and oxygen. It occurs primarily in the chloroplasts of plant cells, specifically using the green pigment chlorophyll.",
+    "question": "What raw materials do plants use in photosynthesis, and where does it happen in the cell?",
+    "ground_truth": "Sunlight, water, and carbon dioxide; it happens in the chloroplasts using chlorophyll."
+  },
+  {
+    "id": "rag_003",
+    "context": "The Great Barrier Reef, located off the coast of Queensland, Australia, is the world's largest coral reef system, composed of over 2,900 individual reefs and 900 islands stretching for over 2,300 kilometers.",
+    "question": "How long is the Great Barrier Reef and how many individual reefs make it up?",
+    "ground_truth": "It stretches over 2,300 kilometers and is composed of over 2,900 individual reefs."
+  },
+  {
+    "id": "rag_004",
+    "context": "Python was created by Guido van Rossum and first released in 1991. It emphasizes code readability with its notable use of significant whitespace, and its design philosophy favors simplicity over complexity.",
+    "question": "Who created Python and when was it first released?",
+    "ground_truth": "Guido van Rossum created it, first released in 1991."
+  },
+  {
+    "id": "rag_005",
+    "context": "The human heart has four chambers: two atria and two ventricles. The right side pumps deoxygenated blood to the lungs, while the left side pumps oxygenated blood to the rest of the body.",
+    "question": "How many chambers does the human heart have, and what does the left side pump?",
+    "ground_truth": "Four chambers (two atria, two ventricles); the left side pumps oxygenated blood to the rest of the body."
+  }
+]
