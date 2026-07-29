@@ -29,3 +29,13 @@
 - **Prevention Rule**: Before renaming/removing a module-level symbol that tests `monkeypatch.setattr()`, grep `tests/` for the old symbol name first. Treat "refactor done" as blocked until that grep returns nothing.
 
 ---
+
+### ERR-002 — Root `.gitignore`'s Python-packaging `lib/` rule silently excluded `frontend-src/src/lib/`
+- **Date**: 2026-07-29
+- **Phase/Task**: Phase 4, Task 4.5 (final verification before deploy-config commit)
+- **Error**: No error/exception — `git status --short` simply never listed `frontend-src/src/lib/api.ts` as new/modified across two prior commits, even after directly editing it (adding `VITE_API_BASE_URL` support). Discovered via `git show HEAD:frontend-src/src/lib/api.ts` failing with `fatal: path ... exists on disk, but not in 'HEAD'`.
+- **Root Cause**: The root `.gitignore` (standard Python template) contains an unanchored `lib/` rule intended to exclude Python virtualenv/packaging artifacts (`lib/`, `lib64/` inside a venv). Because it isn't anchored with a leading `/`, git matches it against **any** directory named `lib` anywhere in the repo, including the unrelated `frontend-src/src/lib/` directory holding the frontend's API client module. This meant `frontend-src/src/lib/api.ts` was never actually committed in the Phase 3 commit, despite `git commit` reporting success for the batch `git add frontend-src/ frontend/`.
+- **Fix**: Added `!frontend-src/src/lib/` immediately after the `lib/` rule in `.gitignore` to un-ignore that specific path. Verified with `git check-ignore -v` before and after, then confirmed `frontend-src/src/lib/api.ts` appears in the next `git status`/`git add -A`/commit.
+- **Prevention Rule**: After any `git add <dir>/` on a batch of new files, cross-check the commit's reported file list against a manual listing of what should be there (e.g. `Get-ChildItem -Recurse` or expected file count) rather than trusting "commit succeeded" as proof everything was staged — generic `.gitignore` template rules (`lib/`, `build/`, `dist/`, `out/`) can silently swallow same-named subdirectories in unrelated parts of a polyglot repo. Prefer anchoring packaging-tool `.gitignore` rules with a leading `/` (e.g. `/lib/`) when a repo also contains frontend/JS code that might use common directory names.
+
+---

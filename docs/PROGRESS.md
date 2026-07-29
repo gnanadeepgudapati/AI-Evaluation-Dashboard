@@ -81,9 +81,9 @@
 
 | # | Task | Status | Completed |
 |---|---|---|---|
-| 4.1 | Create `Dockerfile` for FastAPI backend | todo | — |
-| 4.2 | Create `vercel.json` for frontend (Vercel) | todo | — |
-| 4.3 | Create `render.yaml` for backend (Render) | todo | — |
-| 4.4 | Update `README.md` — live link, demo GIF, setup instructions | todo | — |
-| 4.5 | Final: run full test suite + lint + type check | todo | — |
-| 4.6 | Update PROGRESS.md + SESSION_LOG.md | todo | — |
+| 4.1 | Create `Dockerfile` for FastAPI backend | done | 2026-07-29 (multi-stage: Node build stage for frontend-src → slim Python runtime) |
+| 4.2 | Create `vercel.json` for frontend (Vercel) | done | 2026-07-29 (optional standalone frontend deploy, uses `VITE_API_BASE_URL`) |
+| 4.3 | Create `render.yaml` for backend (Render) | done | 2026-07-29 (Docker runtime, `GROQ_API_KEY` as secret env var) |
+| 4.4 | Update `README.md` — live link, demo GIF, setup instructions | done | 2026-07-29 (full rewrite: architecture diagram, tech stack, local dev + deploy instructions for Docker/Render/Vercel; live link/demo GIF deferred — no deployment target provisioned yet, would need real hosting) |
+| 4.5 | Final: run full test suite + lint + type check | done | 2026-07-29 (54 passed, ruff clean, mypy clean; `npm run build` + `npx oxlint` clean on frontend; Docker build NOT verified — Docker daemon unavailable in this environment) |
+| 4.6 | Update PROGRESS.md + SESSION_LOG.md | done | 2026-07-29 |
