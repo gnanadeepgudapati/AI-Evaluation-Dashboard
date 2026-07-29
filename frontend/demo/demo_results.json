@@ -1,0 +1,37 @@
+{
+  "run_id": "demo-0000-0000-0000-000000000000",
+  "created_at": "2026-07-29T12:00:00+00:00",
+  "winner": "model_a",
+  "model_a": {
+    "provider": "anthropic",
+    "model": "claude-3-5-haiku-20241022",
+    "response_text": "If all Bloops are Razzies and all Razzies are Lazzies, then by transitivity, all Bloops are definitely Lazzies. This follows the logical rule: if A implies B, and B implies C, then A implies C.",
+    "input_tokens": 42,
+    "output_tokens": 58,
+    "latency_ms": 812.0,
+    "cost_usd": 0.00027,
+    "judge_scores": {
+      "correctness": { "score": 0.95, "reasoning": "Correctly identifies the transitive syllogism and explains it clearly." },
+      "completeness": { "score": 0.9, "reasoning": "Covers the logical rule and gives a direct yes/no answer." }
+    },
+    "code_pass_rate": null,
+    "consistency": 0.97,
+    "error": null
+  },
+  "model_b": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "response_text": "Yes, all Bloops are Lazzies, assuming the categories are structured as described.",
+    "input_tokens": 40,
+    "output_tokens": 21,
+    "latency_ms": 540.0,
+    "cost_usd": 0.00001,
+    "judge_scores": {
+      "correctness": { "score": 0.85, "reasoning": "Correct conclusion but does not explain the reasoning." },
+      "completeness": { "score": 0.6, "reasoning": "Answers the question but omits the supporting logic." }
+    },
+    "code_pass_rate": null,
+    "consistency": 0.94,
+    "error": null
+  }
+}
