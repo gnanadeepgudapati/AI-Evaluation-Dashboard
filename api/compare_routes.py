@@ -4,6 +4,7 @@
 
 import asyncio
 import json
+import re
 import statistics
 import uuid
 from datetime import UTC, datetime
@@ -22,8 +23,11 @@ from api.models import (
     SuiteMetadata,
 )
 from database import arena_store
-from evaluation_pipeline.groq_judge import judge_metric
+from evaluation_pipeline.groq_judge import judge_all_metrics_async
 from evaluation_pipeline.metric_definitions import EvaluationInput
+from metrics.code_runner import run_code_test
+from metrics.cost import calculate_cost
+from metrics.latency import p50
 from providers.anthropic_adapter import AnthropicAdapter
 from providers.base import ModelProvider, ModelResponse
 from providers.gemini_adapter import GeminiAdapter
@@ -43,7 +47,18 @@ _KEY_HEADERS = {
     "gemini": "x-gemini-key",
 }
 
-_JUDGE_METRICS = ("groundedness", "relevance", "safety", "completeness")
+_JUDGE_METRICS = ("groundedness", "correctness", "safety", "completeness")
+
+# Which judge metrics apply to each built-in suite. The coding suite uses no
+# judge metrics at all -- it is scored purely by code_runner's pass rate.
+SUITE_JUDGE_METRICS: dict[str, tuple[str, ...]] = {
+    "reasoning": ("correctness", "completeness"),
+    "rag_faithfulness": ("groundedness", "correctness", "completeness"),
+    "safety": ("safety",),
+    "coding": (),
+}
+
+_CODE_FENCE_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL)
 
 # In-memory pub/sub for live SSE progress. Keyed by run_id. Not persisted —
 # purely a UI convenience; the durable record lives in arena_store.
@@ -68,23 +83,13 @@ def _extract_api_key(request: Request, provider: str) -> str:
     return api_key
 
 
-async def _judge_response(prompt: str, response_text: str) -> dict[str, JudgeScore]:
-    """Score one model's response against all legacy metrics.
-
-    Runs the (currently synchronous) Groq judge calls off the event loop via
-    asyncio.to_thread so the API never blocks. TODO(Phase 2): replace with a
-    true async, JSON-mode judge using asyncio.gather.
-    """
+async def _judge_response(
+    prompt: str, response_text: str, metrics: tuple[str, ...] = _JUDGE_METRICS
+) -> dict[str, JudgeScore]:
+    """Score one model's response with the async, JSON-mode judge (asyncio.gather)."""
     judge_input = EvaluationInput(question=prompt, context="", ai_response=response_text)
-
-    results = await asyncio.gather(
-        *(asyncio.to_thread(judge_metric, metric, judge_input) for metric in _JUDGE_METRICS)
-    )
-
-    return {
-        result.metric_name: JudgeScore(score=result.score, reasoning=result.reasoning)
-        for result in results
-    }
+    results = await judge_all_metrics_async(judge_input, metrics)
+    return {name: JudgeScore(score=result.score, reasoning=result.reasoning) for name, result in results.items()}
 
 
 async def _run_one_model(
@@ -94,39 +99,183 @@ async def _run_one_model(
     prompt: str,
     api_key: str,
     run_id: str,
+    consistency_runs: int = 1,
 ) -> ModelResult:
-    from metrics.cost import calculate_cost
-
     adapter = _ADAPTERS[provider]
-    response: ModelResponse = await adapter.complete(prompt=prompt, api_key=api_key, model=model)
 
-    await _publish(run_id, {"event": f"{slot}_done", "run_id": run_id, "latency_ms": response.latency_ms})
+    responses: list[ModelResponse] = []
+    for _ in range(consistency_runs):
+        responses.append(await adapter.complete(prompt=prompt, api_key=api_key, model=model))
+
+    primary = responses[0]
+    await _publish(run_id, {"event": f"{slot}_done", "run_id": run_id, "latency_ms": primary.latency_ms})
 
     judge_scores: dict[str, JudgeScore] = {}
-    if response.error is None:
-        judge_scores = await _judge_response(prompt, response.text)
+    consistency: float | None = None
+    if primary.error is None:
+        judge_scores = await _judge_response(prompt, primary.text)
+        run_avg_scores = [statistics.mean(score.score for score in judge_scores.values())]
 
-    cost_usd = calculate_cost(model, response.input_tokens, response.output_tokens)
+        for extra_response in responses[1:]:
+            if extra_response.error is not None:
+                continue
+            extra_scores = await _judge_response(prompt, extra_response.text)
+            if extra_scores:
+                run_avg_scores.append(statistics.mean(score.score for score in extra_scores.values()))
+
+        if len(run_avg_scores) > 1:
+            consistency = max(0.0, 1 - statistics.pstdev(run_avg_scores))
+
+    total_input_tokens = sum(r.input_tokens for r in responses)
+    total_output_tokens = sum(r.output_tokens for r in responses)
+    cost_usd = calculate_cost(model, total_input_tokens, total_output_tokens)
 
     return ModelResult(
         provider=provider,
         model=model,
-        response_text=response.text,
-        input_tokens=response.input_tokens,
-        output_tokens=response.output_tokens,
-        latency_ms=response.latency_ms,
+        response_text=primary.text,
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens,
+        latency_ms=p50([r.latency_ms for r in responses]),
         cost_usd=cost_usd,
         judge_scores=judge_scores,
         code_pass_rate=None,
-        consistency=None,
-        error=response.error,
+        consistency=consistency,
+        error=primary.error,
+    )
+
+
+def _load_suite_items(suite_id: str) -> list[dict]:
+    path = SUITES_DIR / f"{suite_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Suite '{suite_id}' not found.")
+    try:
+        items = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"Suite '{suite_id}' is malformed.") from exc
+    if not isinstance(items, list):
+        raise HTTPException(status_code=500, detail=f"Suite '{suite_id}' is malformed.")
+    return items
+
+
+def _build_item_prompt(suite_id: str, item: dict) -> str:
+    if suite_id == "rag_faithfulness":
+        return f"Context: {item['context']}\n\nQuestion: {item['question']}"
+    return item["prompt"]
+
+
+def _extract_code(response_text: str) -> str:
+    """Pull a fenced Python code block out of a model response, falling back
+    to the raw response text if no fence is present."""
+    match = _CODE_FENCE_RE.search(response_text)
+    return match.group(1) if match else response_text
+
+
+async def _run_suite_for_model(
+    slot: str,
+    provider: str,
+    model: str,
+    api_key: str,
+    suite_id: str,
+    items: list[dict],
+    consistency_runs: int,
+    run_id: str,
+) -> ModelResult:
+    adapter = _ADAPTERS[provider]
+    is_coding = suite_id == "coding"
+    judge_metrics_for_suite = SUITE_JUDGE_METRICS.get(suite_id, ())
+
+    all_latencies: list[float] = []
+    total_input_tokens = 0
+    total_output_tokens = 0
+    total_cost = 0.0
+    response_previews: list[str] = []
+    code_pass_count = 0
+    code_total = 0
+    metric_score_lists: dict[str, list[float]] = {m: [] for m in judge_metrics_for_suite}
+    metric_reasoning: dict[str, str] = {}
+    per_run_avg_scores: list[float] = []
+    last_error: str | None = None
+    any_success = False
+
+    for run_number in range(consistency_runs):
+        this_run_item_avgs: list[float] = []
+        for item in items:
+            prompt = _build_item_prompt(suite_id, item)
+            response = await adapter.complete(prompt=prompt, api_key=api_key, model=model)
+            all_latencies.append(response.latency_ms)
+
+            if response.error is not None:
+                last_error = response.error
+                continue
+
+            any_success = True
+            total_input_tokens += response.input_tokens
+            total_output_tokens += response.output_tokens
+            total_cost += calculate_cost(model, response.input_tokens, response.output_tokens)
+
+            if run_number == 0:
+                response_previews.append(f"[{item['id']}] {response.text[:200]}")
+
+            if is_coding:
+                code = _extract_code(response.text)
+                code_result = run_code_test(code, item["unit_tests"])
+                code_total += 1
+                if code_result.passed:
+                    code_pass_count += 1
+            elif judge_metrics_for_suite:
+                judge_input = EvaluationInput(
+                    question=item.get("question") or item.get("prompt", ""),
+                    context=item.get("context") or "",
+                    ai_response=response.text,
+                    ground_truth=item.get("ground_truth"),
+                )
+                scores = await judge_all_metrics_async(judge_input, judge_metrics_for_suite)
+                for name, result in scores.items():
+                    metric_score_lists[name].append(result.score)
+                    metric_reasoning[name] = result.reasoning
+                if scores:
+                    this_run_item_avgs.append(statistics.mean(r.score for r in scores.values()))
+
+        if this_run_item_avgs:
+            per_run_avg_scores.append(statistics.mean(this_run_item_avgs))
+
+    await _publish(run_id, {"event": f"{slot}_done", "run_id": run_id, "latency_ms": p50(all_latencies)})
+
+    judge_scores = {
+        name: JudgeScore(score=statistics.mean(scores), reasoning=metric_reasoning.get(name, ""))
+        for name, scores in metric_score_lists.items()
+        if scores
+    }
+
+    consistency: float | None = None
+    if consistency_runs > 1 and len(per_run_avg_scores) > 1:
+        consistency = max(0.0, 1 - statistics.pstdev(per_run_avg_scores))
+
+    code_pass_rate = (code_pass_count / code_total) if code_total else None
+    error = last_error if not any_success else None
+
+    return ModelResult(
+        provider=provider,
+        model=model,
+        response_text="\n".join(response_previews),
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens,
+        latency_ms=p50(all_latencies),
+        cost_usd=total_cost,
+        judge_scores=judge_scores,
+        code_pass_rate=code_pass_rate,
+        consistency=consistency,
+        error=error,
     )
 
 
 def _average_judge_score(result: ModelResult) -> float | None:
-    if not result.judge_scores:
-        return None
-    return statistics.mean(score.score for score in result.judge_scores.values())
+    if result.judge_scores:
+        return statistics.mean(score.score for score in result.judge_scores.values())
+    if result.code_pass_rate is not None:
+        return result.code_pass_rate
+    return None
 
 
 def _determine_winner(result_a: ModelResult, result_b: ModelResult) -> str:
@@ -146,24 +295,37 @@ def _determine_winner(result_a: ModelResult, result_b: ModelResult) -> str:
 
 @router.post("/compare", response_model=CompareResponse)
 async def compare(request: Request, body: CompareRequest) -> CompareResponse:
-    if body.suite_id is not None:
-        raise HTTPException(
-            status_code=501,
-            detail="Suite-based comparisons are not yet implemented (Phase 2).",
-        )
-
     api_key_a = _extract_api_key(request, body.provider_a)
     api_key_b = _extract_api_key(request, body.provider_b)
 
     run_id = body.run_id or str(uuid.uuid4())
-    prompt = body.prompt or ""
 
     await _publish(run_id, {"event": "started", "run_id": run_id})
 
-    result_a, result_b = await asyncio.gather(
-        _run_one_model("model_a", body.provider_a, body.model_a, prompt, api_key_a, run_id),
-        _run_one_model("model_b", body.provider_b, body.model_b, prompt, api_key_b, run_id),
-    )
+    if body.suite_id is not None:
+        items = _load_suite_items(body.suite_id)
+        result_a, result_b = await asyncio.gather(
+            _run_suite_for_model(
+                "model_a", body.provider_a, body.model_a, api_key_a,
+                body.suite_id, items, body.consistency_runs, run_id,
+            ),
+            _run_suite_for_model(
+                "model_b", body.provider_b, body.model_b, api_key_b,
+                body.suite_id, items, body.consistency_runs, run_id,
+            ),
+        )
+        stored_prompt = None
+    else:
+        prompt = body.prompt or ""
+        result_a, result_b = await asyncio.gather(
+            _run_one_model(
+                "model_a", body.provider_a, body.model_a, prompt, api_key_a, run_id, body.consistency_runs
+            ),
+            _run_one_model(
+                "model_b", body.provider_b, body.model_b, prompt, api_key_b, run_id, body.consistency_runs
+            ),
+        )
+        stored_prompt = prompt
 
     await _publish(run_id, {"event": "judge_done", "run_id": run_id})
 
@@ -173,8 +335,8 @@ async def compare(request: Request, body: CompareRequest) -> CompareResponse:
     await arena_store.save_run(
         {
             "id": run_id,
-            "suite_id": None,
-            "prompt": prompt,
+            "suite_id": body.suite_id,
+            "prompt": stored_prompt,
             "model_a": body.model_a,
             "model_b": body.model_b,
             "provider_a": body.provider_a,
