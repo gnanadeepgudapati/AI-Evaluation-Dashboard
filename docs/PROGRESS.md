@@ -63,17 +63,17 @@
 
 | # | Task | Status | Completed |
 |---|---|---|---|
-| 3.1 | Scaffold `frontend-src/` with Vite + React + TypeScript + Tailwind + Recharts | todo | — |
-| 3.2 | Create shared types in `frontend-src/src/types/` | todo | — |
-| 3.3 | Create `Compare` page — model picker, BYOK key inputs, suite/custom-prompt picker | todo | — |
-| 3.4 | Wire SSE live progress to Compare page | todo | — |
-| 3.5 | Create `Results` page — side-by-side cards, radar chart, cost/latency bar charts, winner summary | todo | — |
-| 3.6 | Create `History` page — table of past runs with winner highlight | todo | — |
-| 3.7 | Implement demo mode — load `demo/demo_results.json` when no API key present | todo | — |
-| 3.8 | Configure Vite to build into `frontend/` (FastAPI static mount) | todo | — |
-| 3.9 | Create `demo/demo_results.json` pre-recorded results | todo | — |
-| 3.10 | Run build + verify FastAPI serves React app correctly | todo | — |
-| 3.11 | Update PROGRESS.md + SESSION_LOG.md | todo | — |
+| 3.1 | Scaffold `frontend-src/` with Vite + React + TypeScript + Tailwind + Recharts | done | 2026-07-29 |
+| 3.2 | Create shared types in `frontend-src/src/types/` | done | 2026-07-29 |
+| 3.3 | Create `Compare` page — model picker, BYOK key inputs, suite/custom-prompt picker | done | 2026-07-29 |
+| 3.4 | Wire SSE live progress to Compare page | done | 2026-07-29 (client-generated `run_id` opened before POST, per CONTEXT.md design tradeoff) |
+| 3.5 | Create `Results` page — side-by-side cards, radar chart, cost/latency bar charts, winner summary | done | 2026-07-29 |
+| 3.6 | Create `History` page — table of past runs with winner highlight | done | 2026-07-29 |
+| 3.7 | Implement demo mode — load `demo/demo_results.json` when no API key present | done | 2026-07-29 |
+| 3.8 | Configure Vite to build into `frontend/` (FastAPI static mount) | done | 2026-07-29 (`base: /static/`, `outDir: ../frontend`) |
+| 3.9 | Create `demo/demo_results.json` pre-recorded results | done | 2026-07-29 |
+| 3.10 | Run build + verify FastAPI serves React app correctly | done | 2026-07-29 (verified live in browser: Compare/Results/History all render, /suites and /runs wired) |
+| 3.11 | Update PROGRESS.md + SESSION_LOG.md | done | 2026-07-29 |
 
 ---
 

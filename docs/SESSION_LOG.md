@@ -96,3 +96,47 @@
 ### What's Next
 - Phase 3: scaffold `frontend-src/` (Vite + React + TS + Tailwind + Recharts), build Compare/Results/History pages, SSE wiring, demo mode.
 
+---
+
+## Session 004 — 2026-07-29
+
+### Attempted
+- Executed Phase 3 in full: scaffolded the React frontend, built all 3 pages, wired SSE progress, demo mode, and verified the FastAPI server serves the production build correctly.
+
+### Files Changed / Created
+- `frontend-src/` — created via `npm create vite@latest -- --template react-ts` (Oxlint variant). Installed `tailwindcss` + `@tailwindcss/vite`, `recharts`, `react-router-dom@7.18.2`.
+- `frontend-src/vite.config.ts` — edited: added `@tailwindcss/vite` plugin, `base: "/static/"` (matches FastAPI's existing `/static` mount so built asset URLs resolve correctly), `build.outDir: "../frontend"` with `emptyOutDir: true`, and a dev-server proxy for `/compare`, `/runs`, `/suites`, `/stream`, `/evaluate`, `/evaluations` → `http://localhost:8000`.
+- `frontend-src/src/index.css` — replaced Vite boilerplate with a Tailwind v4 `@theme` block matching the legacy `frontend/index.html` dark palette (`--color-bg: #080c10`, `--color-surface`, `--color-border`, `--color-accent-blue/green/purple/orange/red`) plus `Syne`/`Space Mono` fonts.
+- `frontend-src/index.html` — updated title, added Google Fonts link.
+- `frontend-src/src/types/index.ts` — TypeScript interfaces mirroring `api/models.py` exactly (`ModelResult`, `CompareRequest`/`CompareResponse`, `RunSummary`/`RunsListResponse`, `SuiteMetadata`), plus a static `MODELS_BY_PROVIDER` map and `JUDGE_METRIC_LABELS`.
+- `frontend-src/src/lib/api.ts` — fetch wrapper; BYOK keys are attached as `X-Anthropic-Key`/`X-OpenAI-Key`/`X-Gemini-Key` headers per-call, never persisted to any storage.
+- `frontend-src/src/hooks/useEventSource.ts` — wraps native `EventSource` for `/stream/{run_id}`; documents that the caller must open the stream with a client-generated `run_id` *before* POSTing `/compare` (passing the same id in the body) since `/compare` is a single request/response, not fire-and-forget.
+- `frontend-src/src/context/ArenaContext.tsx` — React context holding BYOK keys (in-memory `useState` only) and the most recent `CompareResponse`, so Results can render immediately post-run without a round trip.
+- `frontend-src/src/components/` — `Layout.tsx` (nav), `ProgressBar.tsx` (5-stage SSE progress), `ModelCard.tsx` (response + tokens/cost/latency/consistency/code-pass-rate + judge scores), `RadarMetrics.tsx` (Recharts `RadarChart` overlay of both models' judge metrics), `CostLatencyCharts.tsx` (Recharts bar charts), `WinnerBanner.tsx`.
+- `frontend-src/src/pages/ComparePage.tsx` — model/provider pickers, 3 BYOK password inputs, Custom Prompt/Run Suite toggle, suite picker fetched from `GET /suites`, consistency-runs selector (1/2/3), live SSE progress bar during submission, posts to `/compare` and stores the result in context before navigating to Results.
+- `frontend-src/src/pages/ResultsPage.tsx` — renders `/results` (last in-session result), `/results/:runId` (fetched via `GET /runs/{id}`), or falls back to demo mode (`public/demo/demo_results.json`) when neither is available — page is never empty on first load.
+- `frontend-src/src/pages/HistoryPage.tsx` — paginated table from `GET /runs`, click-through to `/results/:runId`.
+- `frontend-src/src/App.tsx` — `HashRouter` (chosen over `BrowserRouter` so client-side sub-routes like `#/results` don't 404 on refresh, since FastAPI only serves `index.html` at the single `/dashboard` path, not a catch-all).
+- `frontend-src/public/demo/demo_results.json` — pre-recorded Claude 3.5 Haiku vs GPT-4o-mini reasoning-suite comparison with realistic scores/costs/latencies.
+- Removed unused Vite template boilerplate: `src/App.css`, `src/assets/`, `public/icons.svg`.
+- `frontend/` — regenerated entirely by `npm run build` (old vanilla `index.html`/`dashboard_charts.js` replaced by the built React app's `index.html` + `assets/`).
+
+### Verification
+- `npm run build` in `frontend-src/` → succeeds (`tsc -b && vite build`), output correctly lands in `../frontend`
+- `npx oxlint` → 1 benign fast-refresh warning in `ArenaContext.tsx` (exports both the provider component and a hook from the same file — acceptable, not worth splitting for this size of app)
+- Started `uvicorn api.dashboard_server:app` locally and verified in a real browser:
+  - `GET /dashboard` returns the built `index.html` referencing `/static/assets/*` correctly
+  - Compare page renders: model/provider dropdowns, BYOK key inputs, prompt/suite toggle, consistency-runs selector
+  - Results page in demo mode renders: winner banner, both model cards (response, tokens, cost, latency, consistency, judge scores), radar chart, cost/latency bar charts
+  - History page renders (empty state, since no real runs exist yet without real API keys)
+  - Confirmed via `grep` that no `localStorage`/`sessionStorage` calls exist anywhere in `frontend-src/src` (the only match is an explanatory code comment)
+- `pytest tests/ -q` (backend) → 54 passed, unaffected by frontend work
+
+### Deviation from PLAN.md
+- Used `HashRouter` instead of a plain `BrowserRouter`, since PLAN.md didn't specify how FastAPI would serve SPA sub-routes (`/dashboard/results`, `/dashboard/history`) on a hard refresh. FastAPI currently only has a single `@app.get("/dashboard")` route, not a catch-all. `HashRouter` keeps all client routes under the single `/dashboard` URL (`/dashboard#/results`) so no backend routing changes were needed. Documented in CONTEXT.md.
+- `npm audit` flagged `react-router-dom@7.12+` for a "high" severity RSC (React Server Components) mode CSRF advisory. Investigated: this only applies to apps using React Router's framework/RSC mode with server actions, which this is a pure client-side SPA does not use. Downgrading to avoid it (`npm audit fix --force` → 7.11.0) reintroduced several *other* high-severity advisories from that older version, so the decision was to stay on the latest (7.18.2) and accept the RSC-specific advisory as not applicable to our usage. Documented in CONTEXT.md.
+- Removed the pre-existing vanilla `frontend/index.html` and `frontend/dashboard_charts.js` (Vite's `emptyOutDir: true` overwrites them on build) — this was the explicit intent of Phase 3 ("Replace vanilla HTML with a React/Vite/Tailwind app"), not an accidental deviation, but noting it since those files are no longer in the built output directory (still recoverable from git history if ever needed).
+
+### What's Next
+- Phase 4: `Dockerfile`, `vercel.json`, `render.yaml`, README overhaul with architecture diagram/demo instructions, final full verification (backend tests + frontend build + docs).
+
