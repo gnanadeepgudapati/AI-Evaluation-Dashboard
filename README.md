@@ -1,11 +1,18 @@
+<<<<<<< HEAD
 # LLM Comparison Arena
 
 A BYOK (bring-your-own-key) web app for comparing responses from Claude, GPT, and Gemini side by side — scored on both LLM-judged metrics (groundedness, correctness, completeness, safety) and deterministic metrics (cost, latency, coding pass-rate, consistency). Started as a single-response LLM judge dashboard; now a full head-to-head arena.
+=======
+# LLM Evaluation Pipeline
+
+> An LLM-as-Judge evaluation pipeline for scoring AI agent responses with a full analytics dashboard.
+>>>>>>> ef33cd5a83bae91c06388e0696ae70432066b3ed
 
 ---
 
-## What This Does
+## Overview
 
+<<<<<<< HEAD
 Pick two models from any combination of Anthropic/OpenAI/Google, paste in your own API keys, and either:
 - **Custom prompt mode** — ask both models a single question and compare the two responses directly, or
 - **Suite mode** — run both models against a curated 5-item test suite (`reasoning`, `rag_faithfulness`, `safety`, or `coding`) and get an aggregated score.
@@ -58,11 +65,15 @@ A winner is declared per run based on the aggregate score, and everything is per
 ```
 
 One `/compare` call fans out to both model providers concurrently, runs judge scoring via Groq (JSON-mode, `asyncio.gather` across metrics), computes cost/latency/consistency/code-pass-rate, persists the run, and streams live progress over SSE to the frontend.
+=======
+The LLM Evaluation Pipeline is an analytics platform that scores AI agent responses across multiple quality dimensions — **groundedness**, **relevance**, **safety**, and **completeness** — and surfaces the results through a FastAPI-powered dashboard. Built for monitoring agent quality across production workflows.
+>>>>>>> ef33cd5a83bae91c06388e0696ae70432066b3ed
 
 ---
 
-## Project Structure
+## Features
 
+<<<<<<< HEAD
 ```
 providers/            — ModelProvider Protocol + Anthropic/OpenAI/Gemini adapters (never call paid APIs in tests — all mocked)
 metrics/               — cost.py (pricing tables), latency.py (p50), code_runner.py (sandboxed subprocess execution)
@@ -75,11 +86,17 @@ frontend/              — built static output served by FastAPI at /dashboard a
 tests/                 — full backend test suite (providers, metrics, judge, suites, code runner, compare routes)
 docs/                  — PLAN.md, CONTEXT.md, PROGRESS.md, SESSION_LOG.md, ERROR_LOG.md (living project trackers)
 ```
+=======
+- **LLM-as-Judge evaluation pipeline** that scores AI agent responses on groundedness, relevance, safety, and completeness
+- **Analytics dashboard** powered by FastAPI for tracking model and agent quality over time
+- **Multi-dimensional scoring** for monitoring response quality across production workflows
+>>>>>>> ef33cd5a83bae91c06388e0696ae70432066b3ed
 
 ---
 
 ## Tech Stack
 
+<<<<<<< HEAD
 - **Backend** — Python, FastAPI, Pydantic v2, aiosqlite, sse-starlette, httpx
 - **LLM Judge** — Groq API (Llama), JSON-mode structured output, async/parallel metric scoring
 - **Model providers** — Anthropic, OpenAI, Google Gemini SDKs (BYOK — keys never touch server env/disk/logs)
@@ -119,6 +136,31 @@ The Vite dev server proxies `/compare`, `/runs`, `/suites`, `/stream`, `/evaluat
 ```bash
 cd frontend-src
 npm run build
+=======
+| Layer | Technology |
+|---|---|
+| **Language** | Python |
+| **API Framework** | FastAPI |
+| **Database** | PostgreSQL |
+| **LLM Provider** | OpenAI |
+
+---
+
+## Architecture
+
+```
+┌────────────────┐    ┌─────────────────────┐    ┌──────────────────┐
+│  Agent         │──▶│ LLM-as-Judge        │──▶│  PostgreSQL      │
+│  Responses     │    │ Scoring             │    │  (scores store)  │
+└────────────────┘    └─────────────────────┘    └──────────────────┘
+                              │                          │
+                              ▼                          ▼
+                      ┌───────────────┐         ┌──────────────────┐
+                      │  Multi-dim    │         │  FastAPI         │
+                      │  Quality      │         │  Analytics       │
+                      │  Metrics      │         │  Dashboard       │
+                      └───────────────┘         └──────────────────┘
+>>>>>>> ef33cd5a83bae91c06388e0696ae70432066b3ed
 ```
 Output is written to `../frontend`, which FastAPI serves directly — no separate frontend deploy needed for the all-in-one Docker/Render path.
 
@@ -127,8 +169,9 @@ Output is written to `../frontend`, which FastAPI serves directly — no separat
 
 ---
 
-## API Endpoints
+## Contact
 
+<<<<<<< HEAD
 **Arena (current):**
 - `POST /compare` — run a head-to-head comparison (custom prompt or suite mode), BYOK keys via `X-Anthropic-Key` / `X-OpenAI-Key` / `X-Gemini-Key` headers
 - `GET /suites` — list available test suites
@@ -184,3 +227,6 @@ The `Dockerfile` is multi-stage: a Node stage builds `frontend-src/` into `front
 ## Why This Matters
 
 Picking between LLM providers shouldn't mean trusting vibes or a single vendor's benchmark. This app runs the same prompt (or the same curated test suite) against multiple real models side by side, scores them the same way every time, and tracks cost and latency alongside quality — so the comparison is systematic and repeatable rather than anecdotal.
+=======
+**Gnanadeep Gudapati** — [gnanadeepgudapati@gmail.com](mailto:gnanadeepgudapati@gmail.com) · [LinkedIn](https://linkedin.com/in/gnanadeepgudapati)
+>>>>>>> ef33cd5a83bae91c06388e0696ae70432066b3ed
