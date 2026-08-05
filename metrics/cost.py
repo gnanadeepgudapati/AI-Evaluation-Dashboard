@@ -29,3 +29,16 @@ def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
         input_tokens * prices["input"] + output_tokens * prices["output"]
     ) / 1_000_000
     return cost
+
+
+def cost_per_task(total_cost_usd: float, task_count: int) -> float | None:
+    """Average cost of one task (one model call on one item)."""
+    if task_count <= 0:
+        return None
+    return total_cost_usd / task_count
+
+
+def cost_per_1k_tasks(total_cost_usd: float, task_count: int) -> float | None:
+    """Projected spend for 1,000 tasks at the observed per-task cost."""
+    per_task = cost_per_task(total_cost_usd, task_count)
+    return None if per_task is None else per_task * 1000.0

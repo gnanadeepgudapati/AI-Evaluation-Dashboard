@@ -1,8 +1,10 @@
 # test_metrics.py
 # Deterministic metric math — cost and latency aggregation.
 
-from metrics.cost import calculate_cost
-from metrics.latency import p50
+import pytest
+
+from metrics.cost import calculate_cost, cost_per_1k_tasks, cost_per_task
+from metrics.latency import p50, tokens_per_sec
 
 
 def test_calculate_cost_known_value_gpt_4o_mini():
@@ -43,3 +45,29 @@ def test_p50_single_value():
 
 def test_p50_empty_list():
     assert p50([]) == 0.0
+
+
+def test_cost_per_task_divides_by_task_count():
+    assert cost_per_task(0.05, 5) == pytest.approx(0.01)
+
+
+def test_cost_per_task_zero_count_returns_none():
+    assert cost_per_task(0.05, 0) is None
+
+
+def test_cost_per_1k_tasks_projects():
+    assert cost_per_1k_tasks(0.05, 5) == pytest.approx(10.0)
+
+
+def test_tokens_per_sec_basic():
+    # 200 output tokens over one 2000ms call -> 100 tok/s
+    assert tokens_per_sec(200, 2000.0) == pytest.approx(100.0)
+
+
+def test_tokens_per_sec_averages_over_calls():
+    # 600 total tokens over 3 calls at p50 2000ms -> 200/call -> 100 tok/s
+    assert tokens_per_sec(600, 2000.0, call_count=3) == pytest.approx(100.0)
+
+
+def test_tokens_per_sec_zero_latency_returns_none():
+    assert tokens_per_sec(200, 0.0) is None
