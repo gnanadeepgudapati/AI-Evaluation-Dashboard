@@ -87,11 +87,7 @@ export default function ResultsPage() {
         </Link>
       </div>
       <Leaderboard results={result.results} />
-      <div
-        className={`grid grid-cols-1 gap-4 ${
-          result.results.length <= 2 ? 'md:grid-cols-2' : 'md:grid-cols-2 xl:grid-cols-2'
-        }`}
-      >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {result.results.map((r, i) => (
           <ModelCard key={`${r.model}-${i}`} label={`#${r.rank}`} result={r} />
         ))}
