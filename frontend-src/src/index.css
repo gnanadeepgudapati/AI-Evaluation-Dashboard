@@ -33,3 +33,25 @@ pre,
   font-family: var(--font-mono);
 }
 
+/* --- Print (report page -> browser Save-as-PDF) ------------------------- */
+@media print {
+  .no-print,
+  header {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+  .print-report {
+    color: #111111;
+  }
+  .print-report table,
+  .print-report details {
+    break-inside: avoid;
+  }
+  .print-report pre {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
