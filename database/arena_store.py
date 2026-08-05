@@ -6,19 +6,23 @@ import os
 
 import aiosqlite
 
+from database.migrations import ARENA_SCHEMA_VERSION, migrate_arena_db
+
 DB_PATH = os.path.join(os.path.dirname(__file__), "arena.db")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
-    id            TEXT PRIMARY KEY,
-    suite_id      TEXT,
-    prompt        TEXT,
-    model_a       TEXT NOT NULL,
-    model_b       TEXT NOT NULL,
-    provider_a    TEXT NOT NULL,
-    provider_b    TEXT NOT NULL,
-    winner        TEXT,
-    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id               TEXT PRIMARY KEY,
+    suite_id         TEXT,
+    prompt           TEXT,
+    ranking          TEXT,
+    consistency_runs INTEGER,
+    model_a          TEXT,
+    model_b          TEXT,
+    provider_a       TEXT,
+    provider_b       TEXT,
+    winner           TEXT,
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS model_results (
@@ -50,18 +54,23 @@ CREATE TABLE IF NOT EXISTS metric_scores (
 
 
 async def initialize_arena_db() -> None:
-    """Create the arena tables if they don't already exist. Safe to call repeatedly."""
+    """Migrate an existing DB if needed, then create any missing tables.
+    Safe to call repeatedly."""
+    await migrate_arena_db(DB_PATH)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(_SCHEMA)
+        await db.execute(f"PRAGMA user_version = {ARENA_SCHEMA_VERSION}")
         await db.commit()
 
 
 async def save_run(run: dict) -> None:
+    """Persist an N-model run. Legacy columns (model_a/... / winner) stay NULL
+    on new rows — the model lineup lives in model_results, ranking in `ranking`."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """
-            INSERT INTO runs (id, suite_id, prompt, model_a, model_b, provider_a, provider_b, winner)
-            VALUES (:id, :suite_id, :prompt, :model_a, :model_b, :provider_a, :provider_b, :winner)
+            INSERT INTO runs (id, suite_id, prompt, ranking, consistency_runs)
+            VALUES (:id, :suite_id, :prompt, :ranking, :consistency_runs)
             """,
             run,
         )
