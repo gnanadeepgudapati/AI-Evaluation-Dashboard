@@ -83,7 +83,9 @@ async def test_migration_preserves_every_row_and_writes_backup(tmp_path):
     async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("PRAGMA user_version")
-        (version,) = await cursor.fetchone()
+        version_row = await cursor.fetchone()
+        assert version_row is not None
+        (version,) = version_row
         assert version == ARENA_SCHEMA_VERSION
 
         cursor = await db.execute("SELECT * FROM runs ORDER BY id")
@@ -96,9 +98,13 @@ async def test_migration_preserves_every_row_and_writes_backup(tmp_path):
         assert rows[1]["suite_id"] == "reasoning"
 
         cursor = await db.execute("SELECT COUNT(*) FROM model_results")
-        assert (await cursor.fetchone())[0] == 1
+        count_row = await cursor.fetchone()
+        assert count_row is not None
+        assert count_row[0] == 1
         cursor = await db.execute("SELECT COUNT(*) FROM metric_scores")
-        assert (await cursor.fetchone())[0] == 1
+        count_row = await cursor.fetchone()
+        assert count_row is not None
+        assert count_row[0] == 1
 
 
 async def test_migration_is_idempotent(tmp_path):
@@ -113,7 +119,9 @@ async def test_migration_is_idempotent(tmp_path):
 
     async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM runs")
-        assert (await cursor.fetchone())[0] == 2
+        count_row = await cursor.fetchone()
+        assert count_row is not None
+        assert count_row[0] == 2
 
 
 async def test_migration_noop_on_missing_file(tmp_path):
@@ -145,13 +153,17 @@ async def test_migration_failure_rolls_back_everything(tmp_path):
 
     async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM runs")
-        assert (await cursor.fetchone())[0] == 1  # original data untouched
+        count_row = await cursor.fetchone()
+        assert count_row is not None
+        assert count_row[0] == 1  # original data untouched
         cursor = await db.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='runs_new'"
         )
         assert await cursor.fetchone() is None  # no orphan table
         cursor = await db.execute("PRAGMA user_version")
-        assert (await cursor.fetchone())[0] == 0
+        version_row = await cursor.fetchone()
+        assert version_row is not None
+        assert version_row[0] == 0
 
 
 async def test_migration_recovers_from_orphaned_runs_new(tmp_path):
@@ -167,6 +179,10 @@ async def test_migration_recovers_from_orphaned_runs_new(tmp_path):
 
     async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM runs")
-        assert (await cursor.fetchone())[0] == 2
+        count_row = await cursor.fetchone()
+        assert count_row is not None
+        assert count_row[0] == 2
         cursor = await db.execute("PRAGMA user_version")
-        assert (await cursor.fetchone())[0] == ARENA_SCHEMA_VERSION
+        version_row = await cursor.fetchone()
+        assert version_row is not None
+        assert version_row[0] == ARENA_SCHEMA_VERSION
