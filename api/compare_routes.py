@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from sse_starlette.sse import EventSourceResponse
 
 from api.models import (
@@ -22,6 +22,7 @@ from api.models import (
     RunSummary,
     SuiteMetadata,
 )
+from api.report_md import render_markdown_report
 from database import arena_store
 from evaluation_pipeline.groq_judge import judge_all_metrics_async
 from evaluation_pipeline.metric_definitions import EvaluationInput
@@ -509,6 +510,22 @@ async def _load_run_response(run_id: str) -> tuple[CompareResponse, dict]:
             run_id=run["id"], results=ordered, ranking=ranking, created_at=str(run["created_at"])
         ),
         run,
+    )
+
+
+@router.get("/runs/{run_id}/report.md")
+async def get_run_report_md(run_id: str) -> Response:
+    response, run = await _load_run_response(run_id)
+    markdown = render_markdown_report(
+        response,
+        suite_id=run["suite_id"],
+        prompt=run["prompt"],
+        consistency_runs=run["consistency_runs"] or 1,
+    )
+    return Response(
+        content=markdown,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="report-{run_id[:8]}.md"'},
     )
 
 
