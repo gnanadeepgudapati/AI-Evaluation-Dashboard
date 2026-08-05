@@ -26,8 +26,8 @@ from database import arena_store
 from evaluation_pipeline.groq_judge import judge_all_metrics_async
 from evaluation_pipeline.metric_definitions import EvaluationInput
 from metrics.code_runner import run_code_test
-from metrics.cost import calculate_cost
-from metrics.latency import p50
+from metrics.cost import calculate_cost, cost_per_1k_tasks, cost_per_task
+from metrics.latency import p50, tokens_per_sec
 from providers.anthropic_adapter import AnthropicAdapter
 from providers.base import ModelProvider, ModelResponse
 from providers.gemini_adapter import GeminiAdapter
@@ -278,19 +278,58 @@ def _average_judge_score(result: ModelResult) -> float | None:
     return None
 
 
-def _determine_winner(result_a: ModelResult, result_b: ModelResult) -> str:
-    if result_a.error and result_b.error:
-        return "tie"
-    if result_a.error:
-        return "model_b"
-    if result_b.error:
-        return "model_a"
+def _rank_results(results: list[ModelResult]) -> tuple[list[ModelResult], list[str]]:
+    """Order results best -> worst and assign competition-style ranks.
 
-    avg_a = _average_judge_score(result_a)
-    avg_b = _average_judge_score(result_b)
-    if avg_a is None or avg_b is None or avg_a == avg_b:
-        return "tie"
-    return "model_a" if avg_a > avg_b else "model_b"
+    Errored models always sort below scored ones; models with no score at all
+    sit between (they beat errors but lose to any scored model). Equal
+    (error-flag, aggregate) pairs share a rank: scores [0.9, 0.9, 0.5] rank
+    [1, 1, 3]. The sort is stable, so submission order breaks exact ties.
+    """
+    for result in results:
+        result.aggregate_score = _average_judge_score(result) if result.error is None else None
+
+    def sort_key(result: ModelResult) -> tuple[bool, float]:
+        score = result.aggregate_score if result.aggregate_score is not None else -1.0
+        return (result.error is not None, -score)
+
+    ordered = sorted(results, key=sort_key)
+
+    rank = 0
+    previous_key: tuple[bool, float | None] | None = None
+    for position, result in enumerate(ordered, start=1):
+        key = (result.error is not None, result.aggregate_score)
+        if key != previous_key:
+            rank = position
+            previous_key = key
+        result.rank = rank
+
+    return ordered, [result.model for result in ordered]
+
+
+def _task_count(suite_id: str | None, consistency_runs: int) -> int:
+    """Number of individual model calls a run makes per model: suite items
+    (1 in prompt mode) x consistency runs. Missing suite files degrade to 1
+    item rather than failing a history read."""
+    items = 1
+    if suite_id is not None:
+        try:
+            items = len(_load_suite_items(suite_id))
+        except HTTPException:
+            items = 1
+    return max(1, items) * max(1, consistency_runs)
+
+
+def _enrich_results(results: list[ModelResult], suite_id: str | None, consistency_runs: int) -> None:
+    """Fill the derived fields (tokens/sec, cost per task, per-1k projection).
+    Derived at response time, never stored — legacy runs get them for free."""
+    count = _task_count(suite_id, consistency_runs)
+    for result in results:
+        if result.error is not None:
+            continue
+        result.tokens_per_sec = tokens_per_sec(result.output_tokens, result.latency_ms, call_count=count)
+        result.cost_per_task = cost_per_task(result.cost_usd, count)
+        result.cost_per_1k_tasks = cost_per_1k_tasks(result.cost_usd, count)
 
 
 @router.post("/compare", response_model=CompareResponse)
