@@ -119,3 +119,54 @@ async def test_migration_is_idempotent(tmp_path):
 async def test_migration_noop_on_missing_file(tmp_path):
     await migrate_arena_db(str(tmp_path / "does_not_exist.db"))  # must not raise
     assert not Path(tmp_path / "does_not_exist.db").exists()
+
+
+async def test_migration_failure_rolls_back_everything(tmp_path):
+    """A failure mid-migration must leave the DB exactly as it was:
+    runs table intact, no orphan runs_new, version unchanged, error raised."""
+    db_path = str(tmp_path / "arena.db")
+    # Build a BROKEN v1 db: runs table missing the `winner` column, so the
+    # INSERT ... SELECT inside the migration fails after CREATE TABLE runs_new.
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        "CREATE TABLE runs (id TEXT PRIMARY KEY, suite_id TEXT, prompt TEXT, "
+        "model_a TEXT NOT NULL, model_b TEXT NOT NULL, provider_a TEXT NOT NULL, "
+        "provider_b TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+    )
+    conn.execute(
+        "INSERT INTO runs (id, model_a, model_b, provider_a, provider_b) "
+        "VALUES ('r1', 'a', 'b', 'anthropic', 'openai')"
+    )
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(sqlite3.OperationalError):
+        await migrate_arena_db(db_path)
+
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute("SELECT COUNT(*) FROM runs")
+        assert (await cursor.fetchone())[0] == 1  # original data untouched
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='runs_new'"
+        )
+        assert await cursor.fetchone() is None  # no orphan table
+        cursor = await db.execute("PRAGMA user_version")
+        assert (await cursor.fetchone())[0] == 0
+
+
+async def test_migration_recovers_from_orphaned_runs_new(tmp_path):
+    """An orphan runs_new left by a hard crash must not block migration."""
+    db_path = str(tmp_path / "arena.db")
+    _build_v1_db(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE runs_new (junk TEXT)")
+    conn.commit()
+    conn.close()
+
+    await migrate_arena_db(db_path)  # must succeed
+
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute("SELECT COUNT(*) FROM runs")
+        assert (await cursor.fetchone())[0] == 2
+        cursor = await db.execute("PRAGMA user_version")
+        assert (await cursor.fetchone())[0] == ARENA_SCHEMA_VERSION

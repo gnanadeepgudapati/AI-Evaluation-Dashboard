@@ -10,6 +10,7 @@ from database.migrations import ARENA_SCHEMA_VERSION, migrate_arena_db
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "arena.db")
 
+# Must be kept in sync with _RUNS_V2_COLUMNS in database/migrations.py.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     id               TEXT PRIMARY KEY,

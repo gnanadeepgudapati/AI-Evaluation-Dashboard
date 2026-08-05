@@ -17,6 +17,7 @@ import aiosqlite
 
 ARENA_SCHEMA_VERSION = 2
 
+# Must be kept in sync with the `runs` table schema in database/arena_store.py.
 _RUNS_V2_COLUMNS = """
     id               TEXT PRIMARY KEY,
     suite_id         TEXT,
@@ -50,7 +51,9 @@ async def migrate_arena_db(db_path: str) -> None:
 
     async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute("PRAGMA user_version")
-        (version,) = await cursor.fetchone()
+        version_row = await cursor.fetchone()
+        assert version_row is not None
+        (version,) = version_row
         if version >= ARENA_SCHEMA_VERSION:
             return
 
@@ -63,6 +66,11 @@ async def migrate_arena_db(db_path: str) -> None:
         _backup(db_path)
 
         try:
+            await db.execute("BEGIN IMMEDIATE")
+            # Self-heal: a hard crash before rollback could leave an orphan
+            # from a prior attempt; inside the explicit transaction this is
+            # rolled back along with everything else on failure.
+            await db.execute("DROP TABLE IF EXISTS runs_new")
             await db.execute(f"CREATE TABLE runs_new ({_RUNS_V2_COLUMNS})")
             await db.execute(
                 """
