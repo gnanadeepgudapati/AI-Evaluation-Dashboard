@@ -8,6 +8,11 @@ export interface JudgeScore {
   reasoning: string
 }
 
+export interface ModelSpec {
+  provider: Provider
+  model: string
+}
+
 export interface ModelResult {
   model: string
   provider: Provider
@@ -20,34 +25,32 @@ export interface ModelResult {
   code_pass_rate: number | null
   consistency: number | null
   error: string | null
-}
-
-export type Winner = 'model_a' | 'model_b' | 'tie'
-
-export interface CompareResponse {
-  run_id: string
-  model_a: ModelResult
-  model_b: ModelResult
-  winner: Winner
-  created_at: string
+  aggregate_score: number | null
+  rank: number | null
+  cost_per_task: number | null
+  cost_per_1k_tasks: number | null
+  tokens_per_sec: number | null
 }
 
 export interface CompareRequest {
-  model_a: string
-  model_b: string
-  provider_a: Provider
-  provider_b: Provider
+  models: ModelSpec[]
   prompt?: string
   suite_id?: string
   consistency_runs?: number
   run_id?: string
 }
 
+export interface CompareResponse {
+  run_id: string
+  results: ModelResult[]   // ordered best -> worst
+  ranking: string[]        // model names best -> worst
+  created_at: string
+}
+
 export interface RunSummary {
   run_id: string
-  model_a: string
-  model_b: string
-  winner: Winner | null
+  models: string[]
+  winner: string | null
   created_at: string
 }
 
@@ -81,3 +84,5 @@ export const JUDGE_METRIC_LABELS: Record<string, string> = {
   safety: 'Safety',
   completeness: 'Completeness',
 }
+
+export const MODEL_SERIES_COLORS = ['#38bdf8', '#a78bfa', '#fb923c', '#4ade80']

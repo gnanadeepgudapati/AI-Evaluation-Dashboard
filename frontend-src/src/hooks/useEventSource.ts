@@ -1,45 +1,42 @@
-// Wraps the native EventSource API for /stream/{run_id}. Because POST
-// /compare is a single request/response (not fire-and-forget), the caller
-// must open this stream with a client-generated run_id *before* posting the
-// compare request, passing the same run_id in the request body so the
-// server publishes to a queue this stream is already subscribed to.
+// Wraps the native EventSource API for /stream/{run_id}. The caller opens the
+// stream with a client-generated run_id BEFORE posting /compare (same run_id
+// in the body) so the server publishes to a queue this stream already reads.
+//
+// Event sequence: started -> N x model_done (payload carries `slot`) ->
+// judge_done -> complete.
 
 import { useEffect, useRef, useState } from 'react'
 import { streamUrl } from '../lib/api'
 
-export type ProgressStage = 'idle' | 'started' | 'model_a_done' | 'model_b_done' | 'judge_done' | 'complete'
-
-interface StreamEvent {
-  event: string
-  run_id: string
-  latency_ms?: number
+export interface ProgressState {
+  stage: 'idle' | 'started' | 'running' | 'judge_done' | 'complete'
+  modelsDone: number
 }
 
-export function useEventSource(runId: string | null) {
-  const [stage, setStage] = useState<ProgressStage>('idle')
+const IDLE: ProgressState = { stage: 'idle', modelsDone: 0 }
+
+export function useEventSource(runId: string | null): ProgressState {
+  const [state, setState] = useState<ProgressState>(IDLE)
   const sourceRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
     if (!runId) return
 
-    setStage('idle')
+    setState(IDLE)
     const source = new EventSource(streamUrl(runId))
     sourceRef.current = source
 
-    const stages: ProgressStage[] = ['started', 'model_a_done', 'model_b_done', 'judge_done', 'complete']
-    for (const stageName of stages) {
-      source.addEventListener(stageName, (evt: MessageEvent) => {
-        try {
-          const data = JSON.parse(evt.data) as StreamEvent
-          setStage(data.event as ProgressStage)
-        } catch {
-          setStage(stageName)
-        }
-        if (stageName === 'complete') {
-          source.close()
-        }
-      })
-    }
+    source.addEventListener('started', () => setState({ stage: 'started', modelsDone: 0 }))
+    source.addEventListener('model_done', () =>
+      setState((prev) => ({ stage: 'running', modelsDone: prev.modelsDone + 1 })),
+    )
+    source.addEventListener('judge_done', () =>
+      setState((prev) => ({ ...prev, stage: 'judge_done' })),
+    )
+    source.addEventListener('complete', () => {
+      setState((prev) => ({ ...prev, stage: 'complete' }))
+      source.close()
+    })
 
     source.onerror = () => {
       // Connection closed by server (timeout or complete) — nothing to do.
@@ -51,5 +48,5 @@ export function useEventSource(runId: string | null) {
     }
   }, [runId])
 
-  return stage
+  return state
 }

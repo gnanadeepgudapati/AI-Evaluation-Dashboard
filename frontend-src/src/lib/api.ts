@@ -75,3 +75,7 @@ export async function getRun(runId: string): Promise<CompareResponse> {
 export function streamUrl(runId: string): string {
   return `${API_BASE}/stream/${runId}`
 }
+
+export function reportMdUrl(runId: string): string {
+  return `${API_BASE}/runs/${runId}/report.md`
+}
