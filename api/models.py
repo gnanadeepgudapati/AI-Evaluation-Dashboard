@@ -13,6 +13,11 @@ class JudgeScore(BaseModel):
     reasoning: str
 
 
+class ModelSpec(BaseModel):
+    provider: Provider
+    model: str
+
+
 class ModelResult(BaseModel):
     provider: str
     model: str
@@ -25,13 +30,16 @@ class ModelResult(BaseModel):
     code_pass_rate: float | None = None
     consistency: float | None = None
     error: str | None = None
+    # Derived at read/response time — never stored (see design spec §2):
+    aggregate_score: float | None = None
+    rank: int | None = None
+    cost_per_task: float | None = None
+    cost_per_1k_tasks: float | None = None
+    tokens_per_sec: float | None = None
 
 
 class CompareRequest(BaseModel):
-    model_a: str
-    model_b: str
-    provider_a: Provider
-    provider_b: Provider
+    models: list[ModelSpec] = Field(min_length=2, max_length=4)
     prompt: str | None = None
     suite_id: str | None = None
     consistency_runs: int = 1
@@ -40,9 +48,7 @@ class CompareRequest(BaseModel):
     @model_validator(mode="after")
     def _validate_prompt_xor_suite(self) -> "CompareRequest":
         if bool(self.prompt) == bool(self.suite_id):
-            raise ValueError(
-                "Exactly one of `prompt` or `suite_id` must be provided."
-            )
+            raise ValueError("Exactly one of `prompt` or `suite_id` must be provided.")
         if self.consistency_runs not in (1, 2, 3):
             raise ValueError("consistency_runs must be 1, 2, or 3.")
         return self
@@ -50,9 +56,8 @@ class CompareRequest(BaseModel):
 
 class CompareResponse(BaseModel):
     run_id: str
-    model_a: ModelResult
-    model_b: ModelResult
-    winner: str
+    results: list[ModelResult]   # ordered best -> worst (rank 1 first)
+    ranking: list[str]           # model names, best -> worst
     created_at: str
 
 
@@ -64,9 +69,8 @@ class SuiteMetadata(BaseModel):
 
 class RunSummary(BaseModel):
     run_id: str
-    model_a: str
-    model_b: str
-    winner: str | None
+    models: list[str]
+    winner: str | None           # model NAME (ranking[0]), or "tie" on legacy ties
     created_at: str
 
 
