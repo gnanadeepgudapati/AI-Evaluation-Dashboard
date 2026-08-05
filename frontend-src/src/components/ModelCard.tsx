@@ -44,6 +44,24 @@ export default function ModelCard({ label, result }: { label: string; result: Mo
           <div className="text-muted">Cost</div>
           <div className="text-accent-orange">{formatUsd(result.cost_usd)}</div>
         </div>
+        {result.cost_per_1k_tasks !== null && (
+          <div className="rounded-md bg-bg p-2">
+            <div className="text-muted">Cost / 1k tasks</div>
+            <div className="text-accent-orange">${result.cost_per_1k_tasks.toFixed(2)}</div>
+          </div>
+        )}
+        {result.tokens_per_sec !== null && (
+          <div className="rounded-md bg-bg p-2">
+            <div className="text-muted">Tokens/sec</div>
+            <div className="text-accent-blue">{result.tokens_per_sec.toFixed(1)}</div>
+          </div>
+        )}
+        {result.aggregate_score !== null && (
+          <div className="rounded-md bg-bg p-2">
+            <div className="text-muted">Aggregate score</div>
+            <div className="text-accent-green">{result.aggregate_score.toFixed(2)}</div>
+          </div>
+        )}
         <div className="rounded-md bg-bg p-2">
           <div className="text-muted">Tokens (in/out)</div>
           <div>

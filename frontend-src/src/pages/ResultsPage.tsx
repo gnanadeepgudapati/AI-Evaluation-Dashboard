@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useArena } from '../context/ArenaContext'
 import { getRun } from '../lib/api'
 import ModelCard from '../components/ModelCard'
 import RadarMetrics from '../components/RadarMetrics'
 import CostLatencyCharts from '../components/CostLatencyCharts'
-import WinnerBanner from '../components/WinnerBanner'
+import VerdictBanner from '../components/VerdictBanner'
+import Leaderboard from '../components/Leaderboard'
 import type { CompareResponse } from '../types'
 
 export default function ResultsPage() {
@@ -76,15 +77,27 @@ export default function ResultsPage() {
         </div>
       )}
 
-      <WinnerBanner result={result} />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <ModelCard label="Model A" result={result.model_a} />
-        <ModelCard label="Model B" result={result.model_b} />
+      <VerdictBanner response={result} />
+      <div className="flex justify-end">
+        <Link
+          to={`/report/${result.run_id}`}
+          className="rounded-md bg-accent-blue px-4 py-2 text-sm font-semibold text-bg"
+        >
+          View report →
+        </Link>
       </div>
-
-      <RadarMetrics modelA={result.model_a} modelB={result.model_b} />
-      <CostLatencyCharts modelA={result.model_a} modelB={result.model_b} />
+      <Leaderboard results={result.results} />
+      <div
+        className={`grid grid-cols-1 gap-4 ${
+          result.results.length <= 2 ? 'md:grid-cols-2' : 'md:grid-cols-2 xl:grid-cols-2'
+        }`}
+      >
+        {result.results.map((r, i) => (
+          <ModelCard key={`${r.model}-${i}`} label={`#${r.rank}`} result={r} />
+        ))}
+      </div>
+      <RadarMetrics results={result.results} />
+      <CostLatencyCharts results={result.results} />
     </div>
   )
 }

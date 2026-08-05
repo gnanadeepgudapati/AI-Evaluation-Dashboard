@@ -1,15 +1,9 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { ModelResult } from '../types'
 
-export default function CostLatencyCharts({ modelA, modelB }: { modelA: ModelResult; modelB: ModelResult }) {
-  const costData = [
-    { name: modelA.model, cost: modelA.cost_usd },
-    { name: modelB.model, cost: modelB.cost_usd },
-  ]
-  const latencyData = [
-    { name: modelA.model, latency: modelA.latency_ms },
-    { name: modelB.model, latency: modelB.latency_ms },
-  ]
+export default function CostLatencyCharts({ results }: { results: ModelResult[] }) {
+  const costData = results.map((r) => ({ name: r.model, cost: r.cost_usd }))
+  const latencyData = results.map((r) => ({ name: r.model, latency: r.latency_ms }))
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
