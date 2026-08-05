@@ -52,5 +52,5 @@ class GeminiAdapter:
                 input_tokens=0,
                 output_tokens=0,
                 latency_ms=latency_ms,
-                error=redact_secrets(f"{type(exc).__name__}: {exc}"),
+                error=redact_secrets(f"{type(exc).__name__}: {exc}", secret=api_key),
             )

@@ -203,3 +203,41 @@ def test_compare_consistency_runs_computes_consistency_score(client):
     # Fake judge always returns 0.9 -> zero variance -> consistency == 1.0
     assert data["model_a"]["consistency"] == 1.0
 
+
+def test_provider_auth_error_never_leaks_key_over_http(client, monkeypatch):
+    """End-to-end guard on the whole exposure chain.
+
+    A provider auth failure echoes the submitted key back in its exception
+    message. That message becomes ModelResult.error, is persisted, and is then
+    served from GET /runs/{run_id} — which requires no authentication. The key
+    must survive none of those hops.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from providers.openai_adapter import OpenAIAdapter
+
+    byok_key = "sk-proj-" + "aB3" * 20 + "_xY-9"
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = AsyncMock(
+        side_effect=RuntimeError(f"Incorrect API key provided: {byok_key}")
+    )
+
+    monkeypatch.setitem(compare_routes._ADAPTERS, "openai", OpenAIAdapter())
+
+    with patch("providers.openai_adapter.AsyncOpenAI", return_value=mock_client):
+        resp = client.post(
+            "/compare",
+            json=VALID_PAYLOAD,
+            headers={**VALID_HEADERS, "X-OpenAI-Key": byok_key},
+        )
+
+    assert resp.status_code == 200
+    assert byok_key not in resp.text
+
+    run_id = resp.json()["run_id"]
+    history = client.get(f"/runs/{run_id}")
+    assert history.status_code == 200
+    assert byok_key not in history.text
+    assert "[REDACTED]" in history.json()["model_b"]["error"]
+
