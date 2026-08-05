@@ -3,6 +3,8 @@
 # a mocked judge — never touches a real provider or a real Groq call.
 
 
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -38,7 +40,7 @@ async def fake_judge_all_metrics_async(
     }
 
 
-VALID_PAYLOAD = {
+VALID_PAYLOAD: dict[str, Any] = {
     "models": [
         {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
         {"provider": "openai", "model": "gpt-4o-mini"},
@@ -125,7 +127,7 @@ def test_get_runs_returns_persisted_run(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] >= 1
-    assert data["runs"][0]["model_a"] == "claude-3-5-haiku-20241022"
+    assert data["runs"][0]["models"] == [m["model"] for m in VALID_PAYLOAD["models"]]
 
 
 def test_get_single_run_returns_full_payload(client):
@@ -136,7 +138,7 @@ def test_get_single_run_returns_full_payload(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["run_id"] == run_id
-    assert data["model_a"]["response_text"] == "fake response"
+    assert data["results"][0]["response_text"] == "fake response"
 
 
 def test_get_run_not_found_returns_404(client):
@@ -280,4 +282,63 @@ def test_compare_missing_key_for_any_provider_400s_before_calls(client):
     resp = client.post("/compare", json=payload, headers={"X-Anthropic-Key": "sk-ant-test"})
     assert resp.status_code == 400
     assert "gemini" in resp.json()["detail"]
+
+
+async def _seed_legacy_run() -> None:
+    """Insert a pre-migration-shaped run: legacy runs columns filled,
+    ranking NULL, slots 'model_a'/'model_b'."""
+    await arena_store.save_model_result({
+        "id": "legacy-mr-a", "run_id": "legacy-run", "slot": "model_a",
+        "model_name": "claude-3-5-haiku-20241022", "provider": "anthropic",
+        "response_text": "old answer A", "input_tokens": 10, "output_tokens": 20,
+        "latency_ms": 900.0, "cost_usd": 0.001, "code_pass_rate": None,
+        "consistency": None, "error": None,
+    })
+    await arena_store.save_model_result({
+        "id": "legacy-mr-b", "run_id": "legacy-run", "slot": "model_b",
+        "model_name": "gpt-4o-mini", "provider": "openai",
+        "response_text": "old answer B", "input_tokens": 10, "output_tokens": 20,
+        "latency_ms": 800.0, "cost_usd": 0.002, "code_pass_rate": None,
+        "consistency": None, "error": None,
+    })
+    await arena_store.save_metric_score({
+        "id": "legacy-ms-1", "model_result_id": "legacy-mr-a",
+        "metric_name": "correctness", "score": 0.9, "reasoning": "good",
+    })
+    await arena_store.save_metric_score({
+        "id": "legacy-ms-2", "model_result_id": "legacy-mr-b",
+        "metric_name": "correctness", "score": 0.5, "reasoning": "meh",
+    })
+    # Raw insert mimicking a migrated v1 row: legacy cols set, ranking NULL.
+    import aiosqlite
+    async with aiosqlite.connect(arena_store.DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO runs (id, suite_id, prompt, model_a, model_b, provider_a, provider_b, winner) "
+            "VALUES ('legacy-run', NULL, 'old prompt', 'claude-3-5-haiku-20241022', 'gpt-4o-mini', "
+            "'anthropic', 'openai', 'model_a')"
+        )
+        await db.commit()
+
+
+def test_legacy_two_model_run_still_readable(client):
+    """A pre-migration run (legacy columns + model_a/model_b slots, no ranking)
+    must render through the new list-shaped API. The client fixture has already
+    initialized/migrated the tmp DB by the time the test body runs, so seeding
+    with asyncio.run() here is safe."""
+    import asyncio
+    asyncio.run(_seed_legacy_run())
+
+    detail = client.get("/runs/legacy-run")
+    assert detail.status_code == 200
+    data = detail.json()
+    assert len(data["results"]) == 2
+    assert data["ranking"][0] == "claude-3-5-haiku-20241022"  # 0.9 beats 0.5
+    assert data["results"][0]["rank"] == 1
+    assert data["results"][0]["cost_per_task"] is not None    # derived retroactively
+
+    listing = client.get("/runs")
+    assert listing.status_code == 200
+    row = next(r for r in listing.json()["runs"] if r["run_id"] == "legacy-run")
+    assert row["models"] == ["claude-3-5-haiku-20241022", "gpt-4o-mini"]
+    assert row["winner"] == "claude-3-5-haiku-20241022"
 

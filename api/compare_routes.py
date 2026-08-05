@@ -446,62 +446,76 @@ def list_suites() -> list[SuiteMetadata]:
     return suites
 
 
+def _summary_from_row(row: dict) -> RunSummary:
+    if row["ranking"]:
+        models = json.loads(row["ranking"])
+        winner = models[0] if models else None
+    else:  # legacy v1 row
+        models = [m for m in (row["model_a"], row["model_b"]) if m]
+        if row["winner"] == "model_a":
+            winner = row["model_a"]
+        elif row["winner"] == "model_b":
+            winner = row["model_b"]
+        else:
+            winner = "tie" if row["winner"] == "tie" else None
+    return RunSummary(
+        run_id=row["id"], models=models, winner=winner, created_at=str(row["created_at"])
+    )
+
+
 @router.get("/runs", response_model=RunsListResponse)
 async def list_runs(limit: int = 50, offset: int = 0) -> RunsListResponse:
     rows = await arena_store.get_all_runs(limit=limit, offset=offset)
-    return RunsListResponse(
-        total=len(rows),
-        runs=[
-            RunSummary(
-                run_id=row["id"],
-                model_a=row["model_a"],
-                model_b=row["model_b"],
-                winner=row["winner"],
-                created_at=row["created_at"],
+    return RunsListResponse(total=len(rows), runs=[_summary_from_row(row) for row in rows])
+
+
+async def _load_run_response(run_id: str) -> tuple[CompareResponse, dict]:
+    """Rebuild a full CompareResponse from persisted rows (new or legacy)."""
+    run = await arena_store.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found.")
+
+    rows = await arena_store.get_model_results_for_run(run_id)
+    if len(rows) < 2:
+        raise HTTPException(status_code=500, detail="Run has incomplete data.")
+
+    results: list[ModelResult] = []
+    for row in rows:  # ORDER BY slot: works for "1".."4" and "model_a"/"model_b" alike
+        scores = await arena_store.get_metric_scores_for_result(row["id"])
+        judge_scores = {
+            s["metric_name"]: JudgeScore(score=s["score"], reasoning=s["reasoning"] or "")
+            for s in scores
+        }
+        results.append(
+            ModelResult(
+                provider=row["provider"],
+                model=row["model_name"],
+                response_text=row["response_text"] or "",
+                input_tokens=row["input_tokens"] or 0,
+                output_tokens=row["output_tokens"] or 0,
+                latency_ms=row["latency_ms"] or 0.0,
+                cost_usd=row["cost_usd"] or 0.0,
+                judge_scores=judge_scores,
+                code_pass_rate=row["code_pass_rate"],
+                consistency=row["consistency"],
+                error=row["error"],
             )
-            for row in rows
-        ],
+        )
+
+    _enrich_results(results, run["suite_id"], run["consistency_runs"] or 1)
+    ordered, ranking = _rank_results(results)
+    return (
+        CompareResponse(
+            run_id=run["id"], results=ordered, ranking=ranking, created_at=str(run["created_at"])
+        ),
+        run,
     )
 
 
 @router.get("/runs/{run_id}", response_model=CompareResponse)
 async def get_run(run_id: str) -> CompareResponse:
-    run = await arena_store.get_run(run_id)
-    if run is None:
-        raise HTTPException(status_code=404, detail="Run not found.")
-
-    model_results = await arena_store.get_model_results_for_run(run_id)
-    if len(model_results) != 2:
-        raise HTTPException(status_code=500, detail="Run has incomplete data.")
-
-    results_by_slot: dict[str, ModelResult] = {}
-    for row in model_results:
-        scores = await arena_store.get_metric_scores_for_result(row["id"])
-        judge_scores = {
-            score["metric_name"]: JudgeScore(score=score["score"], reasoning=score["reasoning"] or "")
-            for score in scores
-        }
-        results_by_slot[row["slot"]] = ModelResult(
-            provider=row["provider"],
-            model=row["model_name"],
-            response_text=row["response_text"] or "",
-            input_tokens=row["input_tokens"] or 0,
-            output_tokens=row["output_tokens"] or 0,
-            latency_ms=row["latency_ms"] or 0.0,
-            cost_usd=row["cost_usd"] or 0.0,
-            judge_scores=judge_scores,
-            code_pass_rate=row["code_pass_rate"],
-            consistency=row["consistency"],
-            error=row["error"],
-        )
-
-    return CompareResponse(
-        run_id=run["id"],
-        model_a=results_by_slot["model_a"],
-        model_b=results_by_slot["model_b"],
-        winner=run["winner"] or "tie",
-        created_at=str(run["created_at"]),
-    )
+    response, _ = await _load_run_response(run_id)
+    return response
 
 
 @router.get("/stream/{run_id}")
