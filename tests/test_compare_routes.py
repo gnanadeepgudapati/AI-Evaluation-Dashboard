@@ -39,10 +39,10 @@ async def fake_judge_all_metrics_async(
 
 
 VALID_PAYLOAD = {
-    "model_a": "claude-3-5-haiku-20241022",
-    "model_b": "gpt-4o-mini",
-    "provider_a": "anthropic",
-    "provider_b": "openai",
+    "models": [
+        {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
+        {"provider": "openai", "model": "gpt-4o-mini"},
+    ],
     "prompt": "Explain recursion with a Python example",
 }
 
@@ -70,16 +70,20 @@ def test_compare_success_returns_full_response(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["winner"] in ("model_a", "model_b", "tie")
-    assert data["model_a"]["response_text"] == "fake response"
-    assert data["model_b"]["response_text"] == "fake response"
-    assert data["model_a"]["error"] is None
-    assert set(data["model_a"]["judge_scores"].keys()) == {
+    assert len(data["results"]) == 2
+    assert data["ranking"] == [m["model"] for m in VALID_PAYLOAD["models"]]
+    assert data["results"][0]["rank"] == 1
+    assert data["results"][0]["response_text"] == "fake response"
+    assert data["results"][1]["response_text"] == "fake response"
+    assert data["results"][0]["error"] is None
+    assert set(data["results"][0]["judge_scores"].keys()) == {
         "groundedness",
         "correctness",
         "safety",
         "completeness",
     }
+    assert data["results"][0]["tokens_per_sec"] is not None
+    assert data["results"][0]["cost_per_task"] is not None
 
 
 def test_compare_missing_api_key_header_returns_400(client):
@@ -106,8 +110,12 @@ def test_compare_provider_failure_does_not_crash_run(client, monkeypatch):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["model_a"]["error"] == "Anthropic API error"
-    assert data["winner"] == "model_b"
+    errored = next(r for r in data["results"] if r["provider"] == "anthropic")
+    working = next(r for r in data["results"] if r["provider"] == "openai")
+    assert errored["error"] == "Anthropic API error"
+    assert working["error"] is None
+    assert working["rank"] == 1
+    assert errored["rank"] == 2
 
 
 def test_get_runs_returns_persisted_run(client):
@@ -144,19 +152,19 @@ def test_list_suites_returns_metadata(client):
 
 def test_compare_reasoning_suite_aggregates_judge_scores(client):
     payload = {
-        "model_a": "claude-3-5-haiku-20241022",
-        "model_b": "gpt-4o-mini",
-        "provider_a": "anthropic",
-        "provider_b": "openai",
+        "models": [
+            {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
+            {"provider": "openai", "model": "gpt-4o-mini"},
+        ],
         "suite_id": "reasoning",
     }
     resp = client.post("/compare", json=payload, headers=VALID_HEADERS)
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["model_a"]["judge_scores"]["correctness"]["score"] == 0.9
-    assert data["model_a"]["code_pass_rate"] is None
-    assert "[reasoning_001]" in data["model_a"]["response_text"]
+    assert data["results"][0]["judge_scores"]["correctness"]["score"] == 0.9
+    assert data["results"][0]["code_pass_rate"] is None
+    assert "[reasoning_001]" in data["results"][0]["response_text"]
 
 
 def test_compare_coding_suite_uses_code_runner(client, monkeypatch):
@@ -168,26 +176,26 @@ def test_compare_coding_suite_uses_code_runner(client, monkeypatch):
     monkeypatch.setattr(compare_routes, "run_code_test", fake_run_code_test)
 
     payload = {
-        "model_a": "claude-3-5-haiku-20241022",
-        "model_b": "gpt-4o-mini",
-        "provider_a": "anthropic",
-        "provider_b": "openai",
+        "models": [
+            {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
+            {"provider": "openai", "model": "gpt-4o-mini"},
+        ],
         "suite_id": "coding",
     }
     resp = client.post("/compare", json=payload, headers=VALID_HEADERS)
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["model_a"]["code_pass_rate"] == 1.0
-    assert data["model_a"]["judge_scores"] == {}
+    assert data["results"][0]["code_pass_rate"] == 1.0
+    assert data["results"][0]["judge_scores"] == {}
 
 
 def test_compare_suite_not_found_returns_404(client):
     payload = {
-        "model_a": "claude-3-5-haiku-20241022",
-        "model_b": "gpt-4o-mini",
-        "provider_a": "anthropic",
-        "provider_b": "openai",
+        "models": [
+            {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
+            {"provider": "openai", "model": "gpt-4o-mini"},
+        ],
         "suite_id": "does_not_exist",
     }
     resp = client.post("/compare", json=payload, headers=VALID_HEADERS)
@@ -201,7 +209,7 @@ def test_compare_consistency_runs_computes_consistency_score(client):
     assert resp.status_code == 200
     data = resp.json()
     # Fake judge always returns 0.9 -> zero variance -> consistency == 1.0
-    assert data["model_a"]["consistency"] == 1.0
+    assert data["results"][0]["consistency"] == 1.0
 
 
 def test_provider_auth_error_never_leaks_key_over_http(client, monkeypatch):
@@ -239,5 +247,37 @@ def test_provider_auth_error_never_leaks_key_over_http(client, monkeypatch):
     history = client.get(f"/runs/{run_id}")
     assert history.status_code == 200
     assert byok_key not in history.text
-    assert "[REDACTED]" in history.json()["model_b"]["error"]
+    assert "[REDACTED]" in next(r["error"] for r in history.json()["results"] if r["error"])
+
+
+def test_compare_three_models_ranks_all(client, monkeypatch):
+    monkeypatch.setitem(compare_routes._ADAPTERS, "gemini", FakeAdapter(text="third response"))
+    payload = {
+        "models": [
+            {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
+            {"provider": "openai", "model": "gpt-4o-mini"},
+            {"provider": "gemini", "model": "gemini-1.5-flash"},
+        ],
+        "prompt": "hello",
+    }
+    headers = {**VALID_HEADERS, "X-Gemini-Key": "AIza" + "S" * 35}
+    resp = client.post("/compare", json=payload, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["results"]) == 3
+    assert len(data["ranking"]) == 3
+    assert sorted(r["rank"] for r in data["results"]) == [1, 1, 1]  # identical fake scores tie
+
+
+def test_compare_missing_key_for_any_provider_400s_before_calls(client):
+    payload = {
+        "models": [
+            {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
+            {"provider": "gemini", "model": "gemini-1.5-flash"},
+        ],
+        "prompt": "hello",
+    }
+    resp = client.post("/compare", json=payload, headers={"X-Anthropic-Key": "sk-ant-test"})
+    assert resp.status_code == 400
+    assert "gemini" in resp.json()["detail"]
 

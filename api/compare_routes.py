@@ -108,7 +108,7 @@ async def _run_one_model(
         responses.append(await adapter.complete(prompt=prompt, api_key=api_key, model=model))
 
     primary = responses[0]
-    await _publish(run_id, {"event": f"{slot}_done", "run_id": run_id, "latency_ms": primary.latency_ms})
+    await _publish(run_id, {"event": "model_done", "run_id": run_id, "slot": slot, "latency_ms": primary.latency_ms})
 
     judge_scores: dict[str, JudgeScore] = {}
     consistency: float | None = None
@@ -240,7 +240,7 @@ async def _run_suite_for_model(
         if this_run_item_avgs:
             per_run_avg_scores.append(statistics.mean(this_run_item_avgs))
 
-    await _publish(run_id, {"event": f"{slot}_done", "run_id": run_id, "latency_ms": p50(all_latencies)})
+    await _publish(run_id, {"event": "model_done", "run_id": run_id, "slot": slot, "latency_ms": p50(all_latencies)})
 
     judge_scores = {
         name: JudgeScore(score=statistics.mean(scores), reasoning=metric_reasoning.get(name, ""))
@@ -334,41 +334,40 @@ def _enrich_results(results: list[ModelResult], suite_id: str | None, consistenc
 
 @router.post("/compare", response_model=CompareResponse)
 async def compare(request: Request, body: CompareRequest) -> CompareResponse:
-    api_key_a = _extract_api_key(request, body.provider_a)
-    api_key_b = _extract_api_key(request, body.provider_b)
+    # One key per distinct provider, validated before any model call.
+    api_keys = {
+        provider: _extract_api_key(request, provider)
+        for provider in {spec.provider for spec in body.models}
+    }
 
     run_id = body.run_id or str(uuid.uuid4())
-
     await _publish(run_id, {"event": "started", "run_id": run_id})
 
     if body.suite_id is not None:
         items = _load_suite_items(body.suite_id)
-        result_a, result_b = await asyncio.gather(
-            _run_suite_for_model(
-                "model_a", body.provider_a, body.model_a, api_key_a,
-                body.suite_id, items, body.consistency_runs, run_id,
-            ),
-            _run_suite_for_model(
-                "model_b", body.provider_b, body.model_b, api_key_b,
-                body.suite_id, items, body.consistency_runs, run_id,
-            ),
-        )
         stored_prompt = None
+        tasks = [
+            _run_suite_for_model(
+                str(index), spec.provider, spec.model, api_keys[spec.provider],
+                body.suite_id, items, body.consistency_runs, run_id,
+            )
+            for index, spec in enumerate(body.models, start=1)
+        ]
     else:
-        prompt = body.prompt or ""
-        result_a, result_b = await asyncio.gather(
+        stored_prompt = body.prompt or ""
+        tasks = [
             _run_one_model(
-                "model_a", body.provider_a, body.model_a, prompt, api_key_a, run_id, body.consistency_runs
-            ),
-            _run_one_model(
-                "model_b", body.provider_b, body.model_b, prompt, api_key_b, run_id, body.consistency_runs
-            ),
-        )
-        stored_prompt = prompt
+                str(index), spec.provider, spec.model, stored_prompt,
+                api_keys[spec.provider], run_id, body.consistency_runs,
+            )
+            for index, spec in enumerate(body.models, start=1)
+        ]
 
+    results = list(await asyncio.gather(*tasks))
     await _publish(run_id, {"event": "judge_done", "run_id": run_id})
 
-    winner = _determine_winner(result_a, result_b)
+    _enrich_results(results, body.suite_id, body.consistency_runs)
+    ordered, ranking = _rank_results(results)
     created_at = datetime.now(UTC).isoformat()
 
     await arena_store.save_run(
@@ -376,21 +375,19 @@ async def compare(request: Request, body: CompareRequest) -> CompareResponse:
             "id": run_id,
             "suite_id": body.suite_id,
             "prompt": stored_prompt,
-            "model_a": body.model_a,
-            "model_b": body.model_b,
-            "provider_a": body.provider_a,
-            "provider_b": body.provider_b,
-            "winner": winner,
+            "ranking": json.dumps(ranking),
+            "consistency_runs": body.consistency_runs,
         }
     )
 
-    for slot, result in (("model_a", result_a), ("model_b", result_b)):
+    # Persist in submission order so slot numbers stay stable.
+    for index, result in enumerate(results, start=1):
         model_result_id = str(uuid.uuid4())
         await arena_store.save_model_result(
             {
                 "id": model_result_id,
                 "run_id": run_id,
-                "slot": slot,
+                "slot": str(index),
                 "model_name": result.model,
                 "provider": result.provider,
                 "response_text": result.response_text,
@@ -417,13 +414,7 @@ async def compare(request: Request, body: CompareRequest) -> CompareResponse:
     await _publish(run_id, {"event": "complete", "run_id": run_id})
     _event_queues.pop(run_id, None)
 
-    return CompareResponse(
-        run_id=run_id,
-        model_a=result_a,
-        model_b=result_b,
-        winner=winner,
-        created_at=created_at,
-    )
+    return CompareResponse(run_id=run_id, results=ordered, ranking=ranking, created_at=created_at)
 
 
 @router.get("/suites", response_model=list[SuiteMetadata])
