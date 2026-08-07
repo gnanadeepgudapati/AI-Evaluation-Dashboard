@@ -87,3 +87,14 @@
 | 4.4 | Update `README.md` — live link, demo GIF, setup instructions | done | 2026-07-29 (full rewrite: architecture diagram, tech stack, local dev + deploy instructions for Docker/Render/Vercel; live link/demo GIF deferred — no deployment target provisioned yet, would need real hosting) |
 | 4.5 | Final: run full test suite + lint + type check | done | 2026-07-29 (54 passed, ruff clean, mypy clean; `npm run build` + `npx oxlint` clean on frontend; Docker build NOT verified — Docker daemon unavailable in this environment) |
 | 4.6 | Update PROGRESS.md + SESSION_LOG.md | done | 2026-07-29 |
+
+---
+
+## Phase 6 — N-model Arena + Reports
+
+| # | Task | Status | Completed |
+|---|---|---|---|
+| 6.1–6.13 | N-model refactor: schema v2 migration, provider/derived-field contracts, ranking, `/compare` (2–4 models) + SSE, list-shaped read path with legacy v1 support, markdown report export, frontend (Compare/Results/History/report page) — 13 tasks, see `.superpowers/sdd/2026-08-05-n-model-arena-reports/` | done | 2026-08-07 |
+| 6.14 | Deploy verification + docs (this task) | done | 2026-08-07 (see summary below) |
+
+The arena moved from a fixed two-model (`model_a`/`model_b`) comparison to a full N-model design supporting 2–4 models per run. The SQLite schema was migrated to v2 with a backup-first, data-safe migration (existing `arena.db` is timestamped and backed up automatically before any schema change, and legacy v1 rows remain readable through the read path). `POST /compare` now accepts `models: [{provider, model}, ...]` (2–4 entries), fans out to every selected model concurrently, and returns a ranked leaderboard (`_rank_results`) recomputed at read time rather than trusted from storage. Derived metrics were extended beyond raw cost/latency to include cost-per-task and cost-per-1k-tasks projections and an estimated tokens/sec per model, alongside the existing groundedness/correctness/completeness/safety/coding-pass-rate/consistency metrics. The frontend gained a dynamic 2–4-model lineup on the Compare page, a leaderboard and verdict banner on the Results page, N-model-aware History, and a new per-run report page with a print-to-PDF layout and a one-click `.md` markdown export (also served directly via `GET /runs/{run_id}/report.md`). SSE progress now streams a `model_done` event per model instead of the old `model_a_done`/`model_b_done` pair. Deploy was verified end-to-end on this machine: `docker build` succeeds (Node stage compiles the frontend, Python stage serves it), and a container smoke test against `/`, `/dashboard`, and `/suites` all passed with a healthy Docker healthcheck. Final gates: 105/105 backend tests passing, ruff clean, mypy clean.
