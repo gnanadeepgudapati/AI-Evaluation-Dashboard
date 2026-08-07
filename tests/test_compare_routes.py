@@ -271,6 +271,42 @@ def test_compare_three_models_ranks_all(client, monkeypatch):
     assert sorted(r["rank"] for r in data["results"]) == [1, 1, 1]  # identical fake scores tie
 
 
+def test_compare_publishes_sse_event_sequence_for_three_models(client, monkeypatch):
+    """Locks in the SSE wire contract: started -> model_done (once per model,
+    each carrying its submission slot) -> judge_done -> complete, in that
+    order, published via compare_routes._publish. This is the only test tying
+    the backend event-publishing side to the documented event contract that
+    the frontend's useEventSource.ts also relies on."""
+    monkeypatch.setitem(compare_routes._ADAPTERS, "gemini", FakeAdapter(text="third response"))
+
+    recorded_events: list[dict] = []
+
+    async def fake_publish(run_id: str, event: dict) -> None:
+        recorded_events.append(event)
+
+    monkeypatch.setattr(compare_routes, "_publish", fake_publish)
+
+    payload = {
+        "models": [
+            {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
+            {"provider": "openai", "model": "gpt-4o-mini"},
+            {"provider": "gemini", "model": "gemini-1.5-flash"},
+        ],
+        "prompt": "hello",
+    }
+    headers = {**VALID_HEADERS, "X-Gemini-Key": "AIza" + "S" * 35}
+    resp = client.post("/compare", json=payload, headers=headers)
+    assert resp.status_code == 200
+
+    event_names = [event["event"] for event in recorded_events]
+    assert event_names == ["started", "model_done", "model_done", "model_done", "judge_done", "complete"]
+
+    model_done_events = [event for event in recorded_events if event["event"] == "model_done"]
+    assert {event["slot"] for event in model_done_events} == {"1", "2", "3"}
+    assert all("latency_ms" in event for event in model_done_events)
+    assert all(event["run_id"] == resp.json()["run_id"] for event in recorded_events)
+
+
 def test_compare_missing_key_for_any_provider_400s_before_calls(client):
     payload = {
         "models": [
