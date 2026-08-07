@@ -17,13 +17,29 @@ export default function RadarMetrics({ results }: { results: ModelResult[] }) {
 
   if (metricNames.length === 0) return null
 
+  // Duplicate models are legal (the same model can be submitted twice in one
+  // run). If two results share `r.model`, keying both the chart-data row and
+  // the <Radar> dataKey by the bare model name collides: one result's scores
+  // silently overwrite the other's in `data`, and both <Radar> series read
+  // from the same (last-write-wins) key, so one model's line vanishes rather
+  // than just showing a React key warning. Index-qualify series names only
+  // when a model name actually repeats, so the common case keeps clean
+  // labels.
+  const nameCounts = new Map<string, number>()
+  for (const r of results) {
+    nameCounts.set(r.model, (nameCounts.get(r.model) ?? 0) + 1)
+  }
+  const seriesNames = results.map((r, i) =>
+    (nameCounts.get(r.model) ?? 0) > 1 ? `${r.model} (#${i + 1})` : r.model,
+  )
+
   const data = metricNames.map((metric) => {
     const row: Record<string, string | number> = {
       metric: JUDGE_METRIC_LABELS[metric] ?? metric,
     }
-    for (const r of results) {
-      row[r.model] = r.judge_scores[metric]?.score ?? 0
-    }
+    results.forEach((r, i) => {
+      row[seriesNames[i]] = r.judge_scores[metric]?.score ?? 0
+    })
     return row
   })
 
@@ -35,9 +51,9 @@ export default function RadarMetrics({ results }: { results: ModelResult[] }) {
           <PolarAngleAxis dataKey="metric" tick={{ fill: '#9ca3af', fontSize: 12 }} />
           {results.map((r, i) => (
             <Radar
-              key={r.model}
-              name={r.model}
-              dataKey={r.model}
+              key={`${r.model}-${i}`}
+              name={seriesNames[i]}
+              dataKey={seriesNames[i]}
               stroke={MODEL_SERIES_COLORS[i % 4]}
               fill={MODEL_SERIES_COLORS[i % 4]}
               fillOpacity={0.3}

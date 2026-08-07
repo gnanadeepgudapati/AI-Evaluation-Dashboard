@@ -26,8 +26,8 @@ export default function Leaderboard({ results }: { results: ModelResult[] }) {
           </tr>
         </thead>
         <tbody>
-          {results.map((r) => (
-            <tr key={`${r.model}-${r.rank}`} className="border-t border-border">
+          {results.map((r, i) => (
+            <tr key={`${r.model}-${i}`} className="border-t border-border">
               <td className="px-3 py-3 font-mono-ui">
                 {r.rank === 1 && !r.error ? '🏆' : r.rank}
               </td>
