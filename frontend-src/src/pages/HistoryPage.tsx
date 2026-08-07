@@ -36,9 +36,9 @@ export default function HistoryPage() {
           <thead className="bg-surface font-mono-ui text-xs text-muted uppercase">
             <tr>
               <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Model A</th>
-              <th className="px-4 py-3">Model B</th>
+              <th className="px-4 py-3">Models</th>
               <th className="px-4 py-3">Winner</th>
+              <th className="px-4 py-3">Report</th>
             </tr>
           </thead>
           <tbody>
@@ -51,16 +51,25 @@ export default function HistoryPage() {
                 <td className="px-4 py-3 font-mono-ui text-xs text-muted">
                   {new Date(run.created_at).toLocaleString()}
                 </td>
-                <td className="px-4 py-3">{run.model_a}</td>
-                <td className="px-4 py-3">{run.model_b}</td>
+                <td className="px-4 py-3">{run.models.join(' vs ')}</td>
                 <td className="px-4 py-3">
                   <span
-                    className={
-                      run.winner === 'tie' ? 'text-accent-orange' : 'text-accent-green'
-                    }
+                    className={run.winner === 'tie' ? 'text-accent-orange' : 'text-accent-green'}
                   >
-                    {run.winner ?? 'unknown'}
+                    {run.winner === 'tie' ? 'Tie' : (run.winner ?? 'unknown')}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    className="font-mono-ui text-xs text-accent-blue"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/report/${run.run_id}`)
+                    }}
+                  >
+                    Open report →
+                  </button>
                 </td>
               </tr>
             ))}
