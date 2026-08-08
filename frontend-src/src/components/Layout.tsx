@@ -10,7 +10,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen text-text">
       <header className="border-b border-border">
         <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-4">
-          <div className="text-xl font-bold tracking-tight">
+          <div className="font-pixel-brand text-sm">
             LLM Comparison <span className="text-accent-blue">Arena</span>
           </div>
           <nav className="flex gap-2">

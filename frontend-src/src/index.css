@@ -11,8 +11,9 @@
   --color-accent-purple: #a78bfa;
   --color-accent-orange: #fb923c;
   --color-accent-red: #f87171;
-  --font-display: 'Press Start 2P', monospace;
+  --font-display: 'VT323', monospace;
   --font-mono: 'VT323', monospace;
+  --font-pixel-brand: 'Press Start 2P', monospace;
 }
 
 * {
@@ -20,9 +21,9 @@
 }
 
 html {
-  /* VT323/Press Start 2P are pixel fonts drawn from a small bitmap grid —
-     they need a larger base size than a regular typeface to stay legible. */
-  font-size: 18px;
+  /* VT323 is a pixel font drawn from a small bitmap grid — a touch larger
+     than a regular typeface keeps it legible without feeling oversized. */
+  font-size: 15px;
 }
 
 body {
@@ -46,8 +47,8 @@ body::before {
   pointer-events: none;
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(ellipse 60% 50% at 82% 18%, rgba(255, 122, 26, 0.28), transparent 60%),
-    radial-gradient(ellipse 45% 35% at 82% 18%, rgba(255, 122, 26, 0.35), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 82% 18%, rgba(255, 122, 26, 0.16), transparent 60%),
+    radial-gradient(ellipse 45% 35% at 82% 18%, rgba(255, 122, 26, 0.20), transparent 55%),
     radial-gradient(1.5px 1.5px at 10% 20%, #fff, transparent),
     radial-gradient(1.5px 1.5px at 25% 65%, #fff, transparent),
     radial-gradient(1px 1px at 40% 15%, #cbd5e1, transparent),
@@ -69,9 +70,13 @@ pre,
   font-family: var(--font-mono);
 }
 
-h1, h2, h3, .font-display-ui {
-  letter-spacing: 0.02em;
-  line-height: 1.6;
+.font-pixel-brand {
+  font-family: var(--font-pixel-brand);
+  letter-spacing: 0.03em;
+}
+
+h1, h2, h3 {
+  line-height: 1.3;
 }
 
 /* --- Print (report page -> browser Save-as-PDF) ------------------------- */
