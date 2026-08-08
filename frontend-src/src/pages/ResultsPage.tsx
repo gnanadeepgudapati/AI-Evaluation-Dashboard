@@ -81,6 +81,7 @@ export default function ResultsPage() {
       <div className="flex justify-end">
         <Link
           to={`/report/${result.run_id}`}
+          state={isDemo ? { prefetched: result, isDemo: true } : undefined}
           className="rounded-md bg-accent-blue px-4 py-2 text-sm font-semibold text-bg"
         >
           View report →

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { getRun, reportMdUrl } from '../lib/api'
 import CostLatencyCharts from '../components/CostLatencyCharts'
 import Leaderboard from '../components/Leaderboard'
@@ -7,17 +7,38 @@ import RadarMetrics from '../components/RadarMetrics'
 import VerdictBanner from '../components/VerdictBanner'
 import type { CompareResponse } from '../types'
 
+interface ReportLocationState {
+  prefetched?: CompareResponse
+  isDemo?: boolean
+}
+
 export default function ReportPage() {
   const { runId } = useParams<{ runId: string }>()
+  const location = useLocation()
   const [result, setResult] = useState<CompareResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isDemo, setIsDemo] = useState(false)
 
   useEffect(() => {
     if (!runId) return
+    setResult(null)
+    setError(null)
+
+    // Results reaches here from demo mode with the already-fetched demo
+    // response in router state — the demo run was never persisted, so
+    // GET /runs/{id} would 404 for it.
+    const state = location.state as ReportLocationState | null
+    if (state?.prefetched) {
+      setResult(state.prefetched)
+      setIsDemo(Boolean(state.isDemo))
+      return
+    }
+
+    setIsDemo(false)
     getRun(runId)
       .then(setResult)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load run.'))
-  }, [runId])
+  }, [runId, location.state])
 
   if (error) {
     return (
@@ -40,12 +61,14 @@ export default function ReportPage() {
           >
             Print / Save PDF
           </button>
-          <a
-            href={reportMdUrl(result.run_id)}
-            className="rounded-md bg-accent-blue px-4 py-2 text-sm font-semibold text-bg"
-          >
-            Download .md
-          </a>
+          {!isDemo && (
+            <a
+              href={reportMdUrl(result.run_id)}
+              className="rounded-md bg-accent-blue px-4 py-2 text-sm font-semibold text-bg"
+            >
+              Download .md
+            </a>
+          )}
         </div>
       </div>
 
@@ -53,6 +76,13 @@ export default function ReportPage() {
         Run {result.run_id} · {new Date(result.created_at).toLocaleString()} ·{' '}
         {result.results.length} models
       </div>
+
+      {isDemo && (
+        <div className="no-print rounded-md border border-accent-purple/30 bg-accent-purple/10 px-4 py-3 text-sm text-accent-purple">
+          Demo Mode — this report uses pre-recorded data and was never saved on the server, so it
+          can't be downloaded as Markdown. Run a live comparison to generate a real, saved report.
+        </div>
+      )}
 
       <VerdictBanner response={result} />
       <Leaderboard results={result.results} />
