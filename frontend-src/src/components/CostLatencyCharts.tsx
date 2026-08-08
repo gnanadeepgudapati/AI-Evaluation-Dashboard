@@ -29,7 +29,7 @@ export default function CostLatencyCharts({ results }: { results: ModelResult[] 
             <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} />
             <Tooltip contentStyle={{ background: '#0d1219', border: '1px solid #1a2332' }} />
             <Legend />
-            <Bar dataKey="latency" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="latency" fill="#ff7a1a" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

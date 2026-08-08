@@ -85,4 +85,4 @@ export const JUDGE_METRIC_LABELS: Record<string, string> = {
   completeness: 'Completeness',
 }
 
-export const MODEL_SERIES_COLORS = ['#38bdf8', '#a78bfa', '#fb923c', '#4ade80']
+export const MODEL_SERIES_COLORS = ['#ff7a1a', '#38bdf8', '#a78bfa', '#4ade80']

@@ -11,7 +11,7 @@ export default function ModelCard({ label, result }: { label: string; result: Mo
       <div className="flex items-center justify-between">
         <div>
           <div className="font-mono-ui text-xs text-muted uppercase">{label}</div>
-          <div className="text-lg font-semibold">{result.model}</div>
+          <div className="font-mono-ui text-lg font-bold">{result.model}</div>
           <div className="font-mono-ui text-xs text-accent-purple">{result.provider}</div>
         </div>
         {result.error ? (

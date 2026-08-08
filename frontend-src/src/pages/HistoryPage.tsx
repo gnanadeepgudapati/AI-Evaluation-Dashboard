@@ -51,7 +51,7 @@ export default function HistoryPage() {
                 <td className="px-4 py-3 font-mono-ui text-xs text-muted">
                   {new Date(run.created_at).toLocaleString()}
                 </td>
-                <td className="px-4 py-3">{run.models.join(' vs ')}</td>
+                <td className="px-4 py-3 font-mono-ui">{run.models.join(' vs ')}</td>
                 <td className="px-4 py-3">
                   <span
                     className={run.winner === 'tie' ? 'text-accent-orange' : 'text-accent-green'}

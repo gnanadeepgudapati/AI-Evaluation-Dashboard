@@ -6,17 +6,23 @@
   --color-border: #1a2332;
   --color-text: #e2e8f0;
   --color-muted: #4a5568;
-  --color-accent-blue: #38bdf8;
+  --color-accent-blue: #ff7a1a;
   --color-accent-green: #34d399;
   --color-accent-purple: #a78bfa;
   --color-accent-orange: #fb923c;
   --color-accent-red: #f87171;
-  --font-display: 'Syne', sans-serif;
-  --font-mono: 'Space Mono', monospace;
+  --font-display: 'Press Start 2P', monospace;
+  --font-mono: 'VT323', monospace;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  /* VT323/Press Start 2P are pixel fonts drawn from a small bitmap grid —
+     they need a larger base size than a regular typeface to stay legible. */
+  font-size: 18px;
 }
 
 body {
@@ -25,12 +31,47 @@ body {
   color: var(--color-text);
   font-family: var(--font-display);
   min-height: 100vh;
+  position: relative;
+}
+
+/* --- 3D space backdrop ---------------------------------------------------
+   Fixed behind all content: a deep gradient base, two star layers at
+   different dot sizes/opacity for depth, and a soft blurred orange glow
+   standing in for a distant sun. Pure CSS, no assets, no motion cost. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(ellipse 60% 50% at 82% 18%, rgba(255, 122, 26, 0.28), transparent 60%),
+    radial-gradient(ellipse 45% 35% at 82% 18%, rgba(255, 122, 26, 0.35), transparent 55%),
+    radial-gradient(1.5px 1.5px at 10% 20%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 25% 65%, #fff, transparent),
+    radial-gradient(1px 1px at 40% 15%, #cbd5e1, transparent),
+    radial-gradient(1px 1px at 55% 80%, #fff, transparent),
+    radial-gradient(2px 2px at 70% 45%, #fff, transparent),
+    radial-gradient(1px 1px at 15% 90%, #cbd5e1, transparent),
+    radial-gradient(1.5px 1.5px at 90% 70%, #fff, transparent),
+    radial-gradient(1px 1px at 60% 30%, #94a3b8, transparent),
+    radial-gradient(1px 1px at 33% 40%, #fff, transparent),
+    radial-gradient(1px 1px at 80% 90%, #cbd5e1, transparent),
+    radial-gradient(ellipse 100% 60% at 50% 100%, #0d1219, var(--color-bg) 70%);
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 code,
 pre,
 .font-mono-ui {
   font-family: var(--font-mono);
+}
+
+h1, h2, h3, .font-display-ui {
+  letter-spacing: 0.02em;
+  line-height: 1.6;
 }
 
 /* --- Print (report page -> browser Save-as-PDF) ------------------------- */

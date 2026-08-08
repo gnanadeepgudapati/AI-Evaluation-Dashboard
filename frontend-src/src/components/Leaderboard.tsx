@@ -32,7 +32,7 @@ export default function Leaderboard({ results }: { results: ModelResult[] }) {
                 {r.rank === 1 && !r.error ? '🏆' : r.rank}
               </td>
               <td className="px-3 py-3">
-                <span className="font-semibold">{r.model}</span>{' '}
+                <span className="font-mono-ui font-bold">{r.model}</span>{' '}
                 <span className="font-mono-ui text-xs text-accent-purple">{r.provider}</span>
                 {r.error && (
                   <span className="ml-2 rounded-full bg-accent-red/15 px-2 py-0.5 font-mono-ui text-xs text-accent-red">

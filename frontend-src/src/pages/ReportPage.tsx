@@ -93,7 +93,7 @@ export default function ReportPage() {
         <h2 className="text-xl font-bold">Responses</h2>
         {result.results.map((r, i) => (
           <details key={`${r.model}-${i}`} className="rounded-lg border border-border bg-surface p-4" open>
-            <summary className="cursor-pointer font-semibold">
+            <summary className="cursor-pointer font-mono-ui font-bold">
               #{r.rank} {r.model}{' '}
               <span className="font-mono-ui text-xs text-accent-purple">{r.provider}</span>
             </summary>

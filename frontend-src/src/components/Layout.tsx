@@ -7,7 +7,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-bg text-text">
+    <div className="min-h-screen text-text">
       <header className="border-b border-border">
         <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-4">
           <div className="text-xl font-bold tracking-tight">
